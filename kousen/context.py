@@ -61,10 +61,17 @@ class PartialContext:
 
     @property
     def shard(self) -> t.Optional[hikari.api.GatewayShard]:
-        try:
-            return self._bot._get_shard(self._message.guild_id)
-        except RuntimeError:
+        if not self._bot.shards:
             return None
+
+        if self._message.guild_id is not None:
+            shard_id = hikari.snowflakes.calculate_shard_id(
+                self.bot.shard_count, self._message.guild_id
+            )
+        else:
+            shard_id = 0
+
+        return self._bot.shards[shard_id]
 
     @property
     def message(self) -> hikari.Message:
@@ -100,14 +107,12 @@ class PartialContext:
 
     # todo raise not cached error?
     def get_channel(self) -> t.Optional[hikari.PartialChannel]:
-        if self._bot.cache._is_cache_enabled_for(hikari.CacheComponents.GUILD_CHANNELS):
+        if self.channel_id is not None:
             return self._bot.cache.get_guild_channel(self.channel_id)
         return None
 
     def get_guild(self) -> t.Optional[hikari.Guild]:
-        if self.guild_id is not None and self._bot.cache._is_cache_enabled_for(
-            hikari.CacheComponents.GUILDS
-        ):
+        if self.guild_id is not None:
             return self._bot.cache.get_guild(self.guild_id)
         return None
 
@@ -140,6 +145,7 @@ class Context(PartialContext):
         self,
         bot: Bot,
         message: hikari.Message,
+        *,
         prefix: str,
         parser: str,
         invoked_with: str,
@@ -170,3 +176,21 @@ class Context(PartialContext):
     @property
     def module(self) -> Module:
         return self._command.module
+
+    @classmethod
+    def _create_from_partial_context(
+        cls,
+        partial_context: PartialContext,
+        prefix: str,
+        parser: str,
+        invoked_with: str,
+        command: Command,
+    ) -> "Context":
+        return cls(
+            bot=partial_context._bot,
+            message=partial_context._message,
+            prefix=prefix,
+            parser=parser,
+            invoked_with=invoked_with,
+            command=command,
+        )
