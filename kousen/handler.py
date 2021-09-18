@@ -19,3 +19,34 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+
+import typing as t
+
+import hikari
+
+from kousen import Context, PartialContext
+
+
+__all__: list[str] = [
+    "Bot"
+]
+
+
+class Bot(hikari.GatewayBot):
+
+    __slots__ = ()
+
+    def __init__(
+        self,
+        *,
+        global_prefix: t.Union[str, t.Sequence[str], t.Callable[[PartialContext], t.Coroutine[t.Any, t.Any, t.Union[str, t.Sequence[str]]]]] = None,
+        mention_prefix: bool = False,
+        global_parser: t.Union[str, t.Callable[[Context], t.Coroutine[t.Any, t.Any, str]]] = " ",
+        strict_command_search: bool = True,
+        insensitive_commands: bool = False,
+        insensitive_prefixes: bool = False,
+        ignore_bots: bool = True,
+        owner_ids: t.Sequence[int] = None,
+        **kwargs
+    ) -> None:
+        super().__init__(**kwargs)

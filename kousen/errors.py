@@ -19,3 +19,13 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+
+__all__: list[str] = [
+    "KousenError"
+]
+
+
+class KousenError(Exception):
+    """The base exception for all errors raised by Kousen."""
+
+    __slots__ = ()
