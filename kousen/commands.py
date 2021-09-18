@@ -20,4 +20,9 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 
-__all__: list[str] = []
+__all__: list[str] = ["Command"]
+
+
+class Command:
+
+    __slots__ = ()

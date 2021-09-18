@@ -22,18 +22,20 @@
 
 from __future__ import annotations
 
-import typing
+import typing as t
 
 from kousen.handler import *
 from kousen.checks import *
 from kousen.errors import *
 from kousen.context import *
 from kousen.modules import *
+from kousen.commands import *
 
-__all__: typing.Final[list[str]] = [
+__all__: t.Final[list[str]] = [
     *handler.__all__,
     *checks.__all__,
     *errors.__all__,
     *context.__all__,
     *modules.__all__,
+    *commands.__all__,
 ]

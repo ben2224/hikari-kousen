@@ -20,6 +20,14 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 
-__all__: list[str] = [
+__all__: list[str] = ["Module", "ModuleExtender"]
 
-]
+
+class Module:
+
+    __slots__ = ()
+
+
+class ModuleExtender:
+
+    __slots__ = ()
