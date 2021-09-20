@@ -177,6 +177,10 @@ class Context(PartialContext):
     def module(self) -> Module:
         return self._command.module
 
+    @property
+    def args(self) -> tuple[str]:
+        return self._command.args
+
     @classmethod
     def _create_from_partial_context(
         cls,
