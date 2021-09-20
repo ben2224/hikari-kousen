@@ -128,12 +128,15 @@ class Bot(hikari.GatewayBot):
         The bot's command prefix.
     mention_prefix : :obj:`bool`
         Whether or not the bot's mention will be used as a prefix. This will be `True` if no default
-        prefix is provided, else `False` by default.
+        prefix is provided, else `False` by default. (Note: added in `hikari.StartedEvent` as cache/rest
+         is not usable before then.)
 
     Other Parameters
     ----------------
     default_parser : Union[:obj:`str`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`str`]]]
         The default parser to use for parsing message content for command arguments. Defaults to a whitespace.
+        (Note that regardless of this parser, commands and subcommands should always be seperated
+        by a whitespace, as this option only affects argument parsing.)
     weak_command_search : :obj:`bool`
         If `True`, then the bot will parse for the prefix throughout the message content (instead of just the
         start), allowing for commands to be called at any point in the message. Defaults to False.
@@ -144,9 +147,10 @@ class Bot(hikari.GatewayBot):
         Defaults to `False` (prefixes are case-sensitive).
     ignore_bots : :obj:`bool`
         Prevents other bot's messages invoking your bot's commands if `True`. Defaults to `True`.
-    owners : Iterable[`SnowFlakeishOr[hikari.User]`]
+    owners : Iterable[`int`]
         The IDs or User objects of the users which should be treated as "owners" of the bot.
-        By default this will include the bot owner's id.
+        By default this will include the bot owner's id (added in `hikari.StartedEvent` as cache/rest
+         is not usable before then.)
     """
 
     __slots__ = ()
@@ -161,7 +165,7 @@ class Bot(hikari.GatewayBot):
                 [PartialContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]
             ],
         ] = None,
-        mention_prefix: bool = False,
+        mention_prefix: bool = None,  # so the default can be different depending on whether a prefix was passed
         default_parser: t.Union[
             str, t.Callable[[Context], t.Coroutine[None, None, str]]
         ] = " ",
@@ -177,31 +181,30 @@ class Bot(hikari.GatewayBot):
         ignore_bots: t.Union[
             bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
         ] = True,
-        owners: t.Iterable[hikari.SnowflakeishOr[hikari.User]] = (),
+        owners: t.Iterable[int] = (),
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
+
+        # allows us to check cache settings later on
         if (cache_settings := kwargs.get("cache_settings")) is not None:
             self._cache_components = cache_settings.components
         else:
             self._cache_components = hikari.CacheComponents.ALL
 
+        # turning passed args in to getters that can be called
         if mention_prefix is False and default_prefix is None:
             raise ValueError(
                 "No default prefix was provided and mention_prefix was set to False."
             )
-        user = None
+
         if mention_prefix is True or default_prefix is None:
-            user = self.get_me()
-            # todo implement backoff with fetch and do in startedevent as rest/cache doesn't exist yet
-            # if not user:
-            #   user = await self.rest.fetch_my_user()
-        self._prefix_getter = _handle_prefixes(default_prefix, user)
+            self._prefix_getter = default_prefix  # will add bot mentions after running as cache/rest is needed
+        self._prefix_getter = _handle_prefixes(default_prefix)
 
         if isinstance(default_parser, str):
-            self._default_parser_getter = functools.partial(
-                _base_getter, return_object=default_parser
-            )
+            self._default_parser_getter = functools.partial(_base_getter, return_object=default_parser)
+
         elif iscoroutinefunction(default_parser):
             self._default_parser_getter = functools.partial(
                 _base_getter_with_callback,
@@ -225,16 +228,35 @@ class Bot(hikari.GatewayBot):
         )
         self._ignore_bots = _base_bool_getter_handler(ignore_bots, "Ignore bots")
 
-        if not isinstance(owners, t.Iterable):
-            raise TypeError(f"Owners must be an iterable, not type {type(owners)}")
-        else:  # todo if owners is None then append bot owner's id
-            self._owners = []
-            for owner in owners:
-                if isinstance(owner, int):
-                    self._owners.append(int(owner))
-                elif isinstance(owner, hikari.User):
-                    self._owners.append(int(owner.id))
-                else:
-                    raise TypeError(
-                        f"Owners must be an iterable of Snowflakeish type or hikari.User, not type {type(owner)}"
-                    )
+        if owners is not None:
+            if not isinstance(owners, t.Iterable):
+                raise TypeError(f"Owners must be an iterable, not type {type(owners)}")
+            else:
+                self._owners = []
+                for owner in owners:
+                    if not isinstance(owner, int):
+                        raise TypeError(
+                            f"Owners must be an iterable of ints, not of type {type(owner)}"
+                        )
+                    self._owners.append(owner)
+        else:
+            self._owners = None  # will add bot owner's id after running as cache/rest is needed
+
+        if self._prefix_getter == default_prefix:
+            self.subscribe(hikari.StartedEvent, self._create_prefix_getter_with_mentions)
+        self.subscribe(hikari.StartedEvent, self._add_owner_to_owners)
+
+    async def _create_prefix_getter_with_mentions(self):
+        user = self.get_me()
+        if user is None:
+            user = await self.rest.fetch_my_user()
+            # todo implement backoff with fetch
+        self._prefix_getter = _handle_prefixes(self._prefix_getter, user.id)
+
+    async def _add_owner_to_owners(self):
+        user = self.get_me()
+        if user is None:
+            user = await self.rest.fetch_my_user()
+            # todo implement backoff with fetch
+        if (bot_id := user.id) not in self._owners:
+            self._owners.append(bot_id)
