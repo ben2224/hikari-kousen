@@ -27,3 +27,9 @@ class KousenError(Exception):
     """The base exception for all errors raised by Kousen."""
 
     __slots__ = ()
+
+
+class CheckError(KousenError):
+    """The base exception for all check errors."""
+
+    __slots__ = ()
