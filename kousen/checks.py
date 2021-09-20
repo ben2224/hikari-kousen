@@ -21,3 +21,48 @@
 #  SOFTWARE.
 
 __all__: list[str] = []
+
+import typing as t
+from abc import ABC, abstractmethod
+
+if t.TYPE_CHECKING:
+    from kousen import Context
+
+
+class AbstractCheck(ABC):
+    __slots__ = ()
+
+    @abstractmethod
+    def check(self, context: Context) -> bool:
+        """check
+
+        Parameters
+        ----------
+        context : :obj:`~Context`
+            The context to check against.
+
+        Returns
+        -------
+        :obj:`bool`
+            Returns `True` if the check passes.
+
+        Raises
+        ------
+        :obj:`~CheckError`
+            If the check fails.
+        """
+
+    @abstractmethod
+    def check_without_error(self, context: Context) -> bool:
+        """check
+
+        Parameters
+        ----------
+        context : :obj:`~Context`
+            The context to check against.
+
+        Returns
+        -------
+        :obj:`bool`
+            Returns `True` if the check passes and `False` if the check fails.
+        """
