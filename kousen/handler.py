@@ -36,6 +36,9 @@ _LOGGER = logging.getLogger("kousen")
 
 def _handle_prefixes(prefix, bot_user_id=None):
     prefix_list = []
+    if prefix is None and bot_user_id is not None:
+        prefix_list.extend((f"<@{bot_user_id}>", f"<@!{bot_user_id}>"))
+        return functools.partial(_base_getter, return_object=prefix_list)
     if isinstance(prefix, str):
         prefix_list.append(prefix)
         if bot_user_id:
@@ -132,33 +135,41 @@ class Bot(hikari.GatewayBot):
 
     Other Parameters
     ----------------
-    default_parser : Union[:obj:`str`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`str`]]]
+    default_parser : Union[:obj:`str`, Callable[[:obj:`~Context`], Coroutine[:obj:`None`, :obj:`None`, :obj:`str`]]]
         The default parser to use for parsing message content for command arguments. Defaults to a whitespace.
         (Note that regardless of this parser, commands and subcommands should always be seperated
         by a whitespace, as this option only affects argument parsing.)
-    weak_command_search : :obj:`bool`
+    weak_command_search : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         If `True`, then the bot will parse for the prefix throughout the message content (instead of just the
         start), allowing for commands to be called at any point in the message. Defaults to False.
-    case_insensitive_commands : :obj:`bool`
+    case_insensitive_commands : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Whether or not commands should be case-insensitive or not. Defaults to `False` (commands are case-sensitive).
-    case_insensitive_prefixes : :obj:`bool`
+    case_insensitive_prefixes : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Whether or not prefixes should be handled as case-insensitive or not.
         Defaults to `False` (prefixes are case-sensitive).
-    ignore_bots : :obj:`bool`
+    ignore_bots : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Prevents other bot's messages invoking your bot's commands if `True`. Defaults to `True`.
     owners : Iterable[`int`]
         The IDs or User objects of the users which should be treated as "owners" of the bot.
+    default_embed_colour : Optional[:obj:`hikari.Colorish`]
+        The default colour to use in embeds, the default is `0x2F3136` which is "colourless".
+        (Note: Kousen can only apply this default in :obj:`Context.respond()` but this can be
+        used manually when setting colours of other embeds.) You must pass `None` if you do not want a default
+        embed colour to be set
     """
 
-    __slots__ = ("_cache_components",
-                 "_prefix_getter",
-                 "_default_parser_getter",
-                 "_weak_command_search",
-                 "_case_insensitive_commands",
-                 "_case_insensitive_prefixes",
-                 "_ignore_bots",
-                 "_owners",
-                 "_custom_attributes")
+    __slots__ = (
+        "_cache_components",
+        "_prefix_getter",
+        "_default_parser_getter",
+        "_weak_command_search",
+        "_case_insensitive_commands",
+        "_case_insensitive_prefixes",
+        "_ignore_bots",
+        "_owners",
+        "_custom_attributes",
+        "default_embed_colour",
+    )
 
     def __init__(
         self,
@@ -187,6 +198,7 @@ class Bot(hikari.GatewayBot):
             bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
         ] = True,
         owners: t.Iterable[int] = (),
+        default_embed_colour: t.Optional[hikari.Colorish] = 0x2F3136,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -201,14 +213,15 @@ class Bot(hikari.GatewayBot):
             raise ValueError(
                 "No default prefix was provided and mention_prefix was set to False."
             )
-
         if mention_prefix is True or default_prefix is None:
             self._prefix_getter = default_prefix  # will add bot mentions after running as cache/rest is needed
         else:
             self._prefix_getter = _handle_prefixes(default_prefix)
 
         if isinstance(default_parser, str):
-            self._default_parser_getter = functools.partial(_base_getter, return_object=default_parser)
+            self._default_parser_getter = functools.partial(
+                _base_getter, return_object=default_parser
+            )
 
         elif iscoroutinefunction(default_parser):
             self._default_parser_getter = functools.partial(
@@ -248,11 +261,14 @@ class Bot(hikari.GatewayBot):
             self._owners = []
 
         if self._prefix_getter == default_prefix:
-            self.subscribe(hikari.StartedEvent, self._create_prefix_getter_with_mentions)
+            self.subscribe(
+                hikari.StartedEvent, self._create_prefix_getter_with_mentions
+            )
 
         self._custom_attributes: dict[str, t.Any] = {"ok": 4}
+        self.default_embed_colour = default_embed_colour
 
-    async def _create_prefix_getter_with_mentions(self):
+    async def _create_prefix_getter_with_mentions(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
         if user is None:
             user = await self.rest.fetch_my_user()
@@ -260,21 +276,86 @@ class Bot(hikari.GatewayBot):
         self._prefix_getter = _handle_prefixes(self._prefix_getter, user.id)
 
     def __getattr__(self, item):
-        print(item, type(item))
         if item in self._custom_attributes:
             return self._custom_attributes[item]
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{item}'"
+        )
 
-    def add_custom_attribute(self, name: str, attribute_obj: t.Any) -> "Bot":
+    def add_custom_attribute(self, name: str, attribute_value: t.Any) -> "Bot":
+        """
+        Add a custom attribute to the bot instance, the value of this can be anything and can be accessed with the
+        name passed.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            The name to be used when accessing this attribute.
+        attribute_value : :obj:`~typing.Any`
+            The value returned when the the attribute is accessed.
+
+        Example
+        -------
+        .. code-block:: python
+            import kousen
+            import DataBase  # an example use for a custom attribute, where DataBase is a user-made database class.
+
+            bot = kousen.Bot(...)
+            bot.add_custom_attribute("database", DataBase(...))
+
+            # wherever you have access to the bot instance (e.g. in a command)
+            database = bot.database
+            database.method()
+
+            # the custom attribute can also be a function that can be called
+            def custom_callback(*args, **kwargs):
+                ...
+
+            bot.add_custom_attribute("custom_callback", custom_callback)
+            item = bot.custom_callback(*args, **kwargs)
+
+        Returns
+        -------
+        :obj:`Bot`
+            The instance of the bot to allow for chained calls.
+
+        Raises
+        ------
+        ValueError
+            If there is already an existing attribute or method by that name.
+        """
         name = str(name)
-        if name in self._custom_attributes:
-            raise ValueError(f"There is already a custom set attribute {name}")
-        self._custom_attributes[name] = attribute_obj
+        if name in self._custom_attributes or getattr(self, name, None):
+            raise ValueError(f"There is already a bot attribute '{name}'")
+        self._custom_attributes[name] = attribute_value
         return self
 
-    def set_custom_attribute(self, name: str, new_attribute_obj: t.Any) -> "Bot":
+    def set_custom_attribute(self, name: str, new_attribute_value: t.Any) -> "Bot":
+        """
+        Set a new value for a previously added custom attribute. See :obj:`add_custom_attribute` for
+        details on adding a custom attribute.
+
+        Parameters
+        ----------
+        name : :obj:`str`
+            The name of the existing attribute.
+        new_attribute_value : :obj:`~typing.Any`
+            The new value of the attribute.
+
+        Returns
+        -------
+        :obj:`Bot`
+            The instance of the bot to allow for chained calls.
+
+        Raises
+        ------
+        ValueError
+            If there is no existing custom attribute with the name passed.
+        """
         name = str(name)
         if name not in self._custom_attributes:
-            raise ValueError(f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'")
-        self._custom_attributes[name] = new_attribute_obj
+            raise ValueError(
+                f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'"
+            )
+        self._custom_attributes[name] = new_attribute_value
         return self
