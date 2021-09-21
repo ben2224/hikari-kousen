@@ -19,16 +19,15 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-import asyncio
+from __future__ import annotations
 import logging
 import typing as t
 from inspect import iscoroutinefunction
-
 import functools
 
 import hikari
 
-from kousen import Context, PartialContext
+from kousen.context import Context, PartialContext
 
 __all__: list[str] = ["Bot"]
 
@@ -149,11 +148,17 @@ class Bot(hikari.GatewayBot):
         Prevents other bot's messages invoking your bot's commands if `True`. Defaults to `True`.
     owners : Iterable[`int`]
         The IDs or User objects of the users which should be treated as "owners" of the bot.
-        By default this will include the bot owner's id (added in `hikari.StartedEvent` as cache/rest
-         is not usable before then.)
     """
 
-    __slots__ = ()
+    __slots__ = ("_cache_components",
+                 "_prefix_getter",
+                 "_default_parser_getter",
+                 "_weak_command_search",
+                 "_case_insensitive_commands",
+                 "_case_insensitive_prefixes",
+                 "_ignore_bots",
+                 "_owners",
+                 "_custom_attributes")
 
     def __init__(
         self,
@@ -185,7 +190,6 @@ class Bot(hikari.GatewayBot):
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
-
         # allows us to check cache settings later on
         if (cache_settings := kwargs.get("cache_settings")) is not None:
             self._cache_components = cache_settings.components
@@ -200,7 +204,8 @@ class Bot(hikari.GatewayBot):
 
         if mention_prefix is True or default_prefix is None:
             self._prefix_getter = default_prefix  # will add bot mentions after running as cache/rest is needed
-        self._prefix_getter = _handle_prefixes(default_prefix)
+        else:
+            self._prefix_getter = _handle_prefixes(default_prefix)
 
         if isinstance(default_parser, str):
             self._default_parser_getter = functools.partial(_base_getter, return_object=default_parser)
@@ -240,11 +245,12 @@ class Bot(hikari.GatewayBot):
                         )
                     self._owners.append(owner)
         else:
-            self._owners = None  # will add bot owner's id after running as cache/rest is needed
+            self._owners = []
 
         if self._prefix_getter == default_prefix:
             self.subscribe(hikari.StartedEvent, self._create_prefix_getter_with_mentions)
-        self.subscribe(hikari.StartedEvent, self._add_owner_to_owners)
+
+        self._custom_attributes: dict[str, t.Any] = {"ok": 4}
 
     async def _create_prefix_getter_with_mentions(self):
         user = self.get_me()
@@ -253,10 +259,22 @@ class Bot(hikari.GatewayBot):
             # todo implement backoff with fetch
         self._prefix_getter = _handle_prefixes(self._prefix_getter, user.id)
 
-    async def _add_owner_to_owners(self):
-        user = self.get_me()
-        if user is None:
-            user = await self.rest.fetch_my_user()
-            # todo implement backoff with fetch
-        if (bot_id := user.id) not in self._owners:
-            self._owners.append(bot_id)
+    def __getattr__(self, item):
+        print(item, type(item))
+        if item in self._custom_attributes:
+            return self._custom_attributes[item]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+
+    def add_custom_attribute(self, name: str, attribute_obj: t.Any) -> "Bot":
+        name = str(name)
+        if name in self._custom_attributes:
+            raise ValueError(f"There is already a custom set attribute {name}")
+        self._custom_attributes[name] = attribute_obj
+        return self
+
+    def set_custom_attribute(self, name: str, new_attribute_obj: t.Any) -> "Bot":
+        name = str(name)
+        if name not in self._custom_attributes:
+            raise ValueError(f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'")
+        self._custom_attributes[name] = new_attribute_obj
+        return self
