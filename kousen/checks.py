@@ -19,14 +19,14 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-
-__all__: list[str] = []
-
+from __future__ import annotations
 import typing as t
 from abc import ABC, abstractmethod
 
 if t.TYPE_CHECKING:
-    from kousen import Context
+    from kousen.context import Context
+
+__all__: list[str] = []
 
 
 class AbstractCheck(ABC):

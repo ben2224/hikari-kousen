@@ -20,7 +20,6 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 from __future__ import annotations
-
 import datetime
 import functools
 import typing as t
@@ -28,7 +27,9 @@ import typing as t
 import hikari
 
 if t.TYPE_CHECKING:
-    from kousen import Bot, Command, Module
+    from kousen.handler import Bot
+    from kousen.commands import Command
+    from kousen.modules import Module
 
 __all__: list[str] = ["PartialContext", "Context"]
 
