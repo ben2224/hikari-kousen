@@ -19,15 +19,57 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+from __future__ import annotations
 
 __all__: list[str] = ["Module", "ModuleExtender"]
 
 
-class Module:
+class _BaseModule:
 
     __slots__ = ()
 
+    async def add_command(self):
+        ...
 
-class ModuleExtender:
+    async def create_command(self):
+        ...
+
+    async def add_listener(self):
+        ...
+
+    async def create_listener(self):
+        ...
+
+    async def add_task(self):
+        ...
+
+    async def create_task(self):
+        ...
+
+    async def add_check(self):
+        ...
+
+
+class Module(_BaseModule):
+
+    __slots__ = ()
+
+    async def set_parser(self):
+        ...
+
+    async def set_error_handler(self):
+        ...
+
+    async def load_extender(self):
+        ...
+
+    async def add_cooldown(self):
+        ...
+
+    async def add_command_cooldown(self):
+        ...
+
+
+class ModuleExtender(_BaseModule):
 
     __slots__ = ()
