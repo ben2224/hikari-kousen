@@ -49,11 +49,23 @@ class PartialContext:
 
     @property
     def bot(self) -> Bot:
-        """The bot instance."""
+        """The bot instance.
+
+        Returns
+        -------
+        :obj:`Bot`
+            The bot instance.
+        """
         return self._bot
 
     @property
-    def cache(self) -> t.Optional[hikari.api.Cache]:
+    def cache(self) -> hikari.api.Cache:
+        """The hikari cache implementation initialised with the bot.
+
+        Returns
+        -------
+        `hikari.api.Cache`
+            The cache instance."""
         return self._bot.cache
 
     @property
@@ -133,8 +145,71 @@ class PartialContext:
         return None
 
     @functools.wraps(hikari.Message.respond)
-    async def respond(self, *args, **kwargs) -> hikari.Message:
-        return await self.message.respond(*args, **kwargs)
+    async def respond(
+        self,
+        content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
+        *,
+        attachment: hikari.UndefinedOr[hikari.Resourceish] = hikari.UNDEFINED,
+        attachments: hikari.UndefinedOr[
+            t.Sequence[hikari.Resourceish]
+        ] = hikari.UNDEFINED,
+        component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
+        components: hikari.UndefinedOr[
+            t.Sequence[hikari.api.ComponentBuilder]
+        ] = hikari.UNDEFINED,
+        embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
+        embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
+        nonce: hikari.UndefinedOr[str] = hikari.UNDEFINED,
+        tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+        reply: t.Union[
+            hikari.UndefinedType, hikari.SnowflakeishOr[hikari.PartialMessage], bool
+        ] = hikari.UNDEFINED,
+        mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+        mentions_reply: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+        user_mentions: hikari.UndefinedOr[
+            t.Union[hikari.SnowflakeishSequence[hikari.PartialUser], bool]
+        ] = hikari.UNDEFINED,
+        role_mentions: hikari.UndefinedOr[
+            t.Union[hikari.SnowflakeishSequence[hikari.PartialRole], bool]
+        ] = hikari.UNDEFINED,
+    ) -> hikari.Message:
+        """
+        An alias for `context.message.respond()``
+
+        Notes
+        ----
+        If no colour is passed inside any embeds passed then `Bot.default_embed_colour`
+        is set as the colour if available. See hikari's documentation for further details.
+
+        """
+        if isinstance(content, hikari.Embed):
+            if content.colour is None:
+                content.colour = self._bot.default_embed_colour
+        if isinstance(embed, hikari.Embed):
+            if embed.colour is None:
+                embed.colour = self._bot.default_embed_colour
+        if isinstance(embeds, t.Collection):
+            for emd in embeds:
+                if isinstance(emd, hikari.Embed):
+                    if emd.colour is None:
+                        emd.colour = self._bot.default_embed_colour
+
+        return await self._message.respond(
+            content=content,
+            attachment=attachment,
+            attachments=attachments,
+            component=component,
+            components=components,
+            embed=embed,
+            embeds=embeds,
+            tts=tts,
+            nonce=nonce,
+            reply=reply,
+            mentions_everyone=mentions_everyone,
+            mentions_reply=mentions_reply,
+            user_mentions=user_mentions,
+            role_mentions=role_mentions,
+        )
 
 
 class Context(PartialContext):
