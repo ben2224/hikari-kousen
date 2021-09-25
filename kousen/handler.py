@@ -34,51 +34,18 @@ __all__: list[str] = ["Bot"]
 _LOGGER = logging.getLogger("kousen")
 
 
-def _handle_prefixes(prefix, bot_user_id=None):
-    prefix_list = []
-    if prefix is None and bot_user_id is not None:
-        prefix_list.extend((f"<@{bot_user_id}>", f"<@!{bot_user_id}>"))
-        return functools.partial(_base_getter, return_object=prefix_list)
-    if isinstance(prefix, str):
-        prefix_list.append(prefix)
-        if bot_user_id:
-            prefix_list.extend((f"<@{bot_user_id}>", f"<@!{bot_user_id}>"))
-        return functools.partial(_base_getter, return_object=prefix_list)
-
-    if isinstance(prefix, t.Iterable):
-        prefix_list.extend(list(map(str, prefix)))
-        if bot_user_id:
-            prefix_list.extend((f"<@{bot_user_id}>", f"<@!{bot_user_id}>"))
-        return functools.partial(_base_getter, return_object=prefix_list)
-
-    if iscoroutinefunction(prefix):
-        return functools.partial(
-            _prefix_getter_with_callback, callback=prefix, bot_id=bot_user_id
-        )
-
-    else:
-        raise TypeError(
-            f"Prefix must be either a string, or iterable of strings, or a coroutine, not type {type(prefix)}"
-        )
-
-
 async def _prefix_getter_with_callback(
-    partial_context: PartialContext, callback, bot_id
-):
+    partial_context: PartialContext, callback
+) -> list[str]:
     getter_result = await callback(partial_context)
-    prefixes = []
 
     if isinstance(getter_result, str):
-        prefixes.append(str)
-        if bot_id:
-            prefixes.extend((f"<@{bot_id}>", f"<@!{bot_id}>"))
-        return prefixes
+        return [getter_result]
 
     if isinstance(getter_result, t.Iterable):
-        prefixes.extend(list(map(str, getter_result)))
-        if bot_id:
-            prefixes.extend((f"<@{bot_id}>", f"<@!{bot_id}>"))
-        return prefixes
+        list1: list[str] = []
+        list1.extend(list(*map(str, getter_result)))
+        return list1
 
     else:
         raise TypeError(
@@ -93,7 +60,7 @@ def _base_bool_getter_handler(callable_or_bool, name: str):
         return functools.partial(
             _base_getter_with_callback,
             callback=callable_or_bool,
-            result_type=bool,
+            result_type=[bool],
             error_text=f"The {name} callback must return a bool",
         )
     else:
@@ -103,12 +70,15 @@ def _base_bool_getter_handler(callable_or_bool, name: str):
 
 
 async def _base_getter_with_callback(
-    partial_context_or_context, callback, result_type, error_text
+    partial_context_or_context,
+    callback,
+    result_types: t.Iterable[t.Any],
+    error_text: str,
 ):
     getter_result = await callback(partial_context_or_context)
-
-    if isinstance(getter_result, result_type):
-        return getter_result
+    for result_tp in result_types:
+        if isinstance(getter_result, result_tp):
+            return getter_result
     else:
         raise TypeError(f"{error_text}, not type {type(getter_result)}")
 
@@ -130,8 +100,7 @@ class Bot(hikari.GatewayBot):
         The bot's command prefix.
     mention_prefix : :obj:`bool`
         Whether or not the bot's mention will be used as a prefix. This will be `True` if no default
-        prefix is provided, else `False` by default. (Note: added in `hikari.StartedEvent` as cache/rest
-         is not usable before then.)
+        prefix is provided, else `False` by default.
 
     Other Parameters
     ----------------
@@ -161,6 +130,7 @@ class Bot(hikari.GatewayBot):
     __slots__ = (
         "_cache_components",
         "_prefix_getter",
+        "_mention_prefixes",
         "_default_parser_getter",
         "_weak_command_search",
         "_case_insensitive_commands",
@@ -168,7 +138,7 @@ class Bot(hikari.GatewayBot):
         "_ignore_bots",
         "_owners",
         "_custom_attributes",
-        "default_embed_colour",
+        "_default_embed_colour",
     )
 
     def __init__(
@@ -208,15 +178,36 @@ class Bot(hikari.GatewayBot):
         else:
             self._cache_components = hikari.CacheComponents.ALL
 
-        # turning passed args in to getters that can be called
         if mention_prefix is False and default_prefix is None:
             raise ValueError(
                 "No default prefix was provided and mention_prefix was set to False."
             )
+
+        self._mention_prefixes: list[str] = []
         if mention_prefix is True or default_prefix is None:
-            self._prefix_getter = default_prefix  # will add bot mentions after running as cache/rest is needed
+            self.subscribe(hikari.StartedEvent, self._setup_mention_prefixes)
         else:
-            self._prefix_getter = _handle_prefixes(default_prefix)
+            if isinstance(default_prefix, str):
+                self._prefix_getter = functools.partial(
+                    _base_getter, return_object=[default_prefix]
+                )
+
+            if isinstance(default_prefix, t.Iterable):
+                prefix_list: list[str] = []
+                prefix_list.extend(list(*map(str, default_prefix)))
+                self._prefix_getter = functools.partial(
+                    _base_getter, return_object=prefix_list
+                )
+
+            if iscoroutinefunction(default_prefix):
+                self._prefix_getter = functools.partial(
+                    _prefix_getter_with_callback, callback=default_prefix
+                )
+
+            else:
+                raise TypeError(
+                    f"Prefix must be either a string, or iterable of strings, or a coroutine, not type {type(default_prefix)}"
+                )
 
         if isinstance(default_parser, str):
             self._default_parser_getter = functools.partial(
@@ -227,7 +218,7 @@ class Bot(hikari.GatewayBot):
             self._default_parser_getter = functools.partial(
                 _base_getter_with_callback,
                 callback=default_parser,
-                result_type=str,
+                result_type=[str],
                 error_text="The parser callback must return a string",
             )
         else:
@@ -246,34 +237,27 @@ class Bot(hikari.GatewayBot):
         )
         self._ignore_bots = _base_bool_getter_handler(ignore_bots, "Ignore bots")
 
+        self._owners = []
         if owners is not None:
             if not isinstance(owners, t.Iterable):
                 raise TypeError(f"Owners must be an iterable, not type {type(owners)}")
             else:
-                self._owners = []
                 for owner in owners:
                     if not isinstance(owner, int):
                         raise TypeError(
                             f"Owners must be an iterable of ints, not of type {type(owner)}"
                         )
                     self._owners.append(owner)
-        else:
-            self._owners = []
-
-        if self._prefix_getter == default_prefix:
-            self.subscribe(
-                hikari.StartedEvent, self._create_prefix_getter_with_mentions
-            )
 
         self._custom_attributes: dict[str, t.Any] = {"ok": 4}
-        self.default_embed_colour = default_embed_colour
+        self._default_embed_colour = default_embed_colour
 
-    async def _create_prefix_getter_with_mentions(self, _: hikari.StartedEvent) -> None:
+    async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
         if user is None:
             user = await self.rest.fetch_my_user()
             # todo implement backoff with fetch
-        self._prefix_getter = _handle_prefixes(self._prefix_getter, user.id)
+        self._mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
 
     def __getattr__(self, item):
         if item in self._custom_attributes:
