@@ -20,60 +20,67 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 
+from hikari.internal.enums import Enum
+
 __all__: list[str] = ["Colour", "Color"]
 
 
-class Colour:
-    MAGENTA: int = 0xe91e63
-    DARK_MAGENTA: int = 0xad1457
+class Colour(int, Enum):
+    MAGENTA = 0xe91e63
+    DARK_MAGENTA = 0xad1457
 
-    PURPLE: int = 0x9b59b6
-    DARK_PURPLE: int = 0x71368a
+    PURPLE = 0x9b59b6
+    DARK_PURPLE = 0x71368a
 
-    LIGHT_BLUE: int = 0x00ccff
-    BLUE: int = 0x3498db
-    DARK_BLUE: int = 0x206694
+    LIGHT_BLUE = 0x00ccff
+    BLUE = 0x3498db
+    DARK_BLUE = 0x206694
 
-    LIGHT_TEAL: int = 0x66ffff
-    TEAL: int = 0x00e6e6
-    DARK_TEAL: int = 0x009999
+    LIGHT_TEAL = 0x66ffff
+    TEAL = 0x00e6e6
+    DARK_TEAL = 0x009999
 
-    LIGHT_GREEN: int = 0x66ff66
-    GREEN: int = 0x00cc00
-    DARK_GREEN: int = 0x006600
+    LIGHT_GREEN = 0x66ff66
+    GREEN = 0x00cc00
+    DARK_GREEN = 0x006600
 
-    LIGHT_YELLOW: int = 0xffff66
-    YELLOW: int = 0xffff00
+    LIGHT_YELLOW = 0xffff66
+    YELLOW = 0xffff00
 
-    GOLD: int = 0xffd700
+    GOLD = 0xffd700
 
-    LIGHT_ORANGE: int = 0xffc966
-    ORANGE: int = 0xffa500
-    DARK_ORANGE: int = 0x996300
+    LIGHT_ORANGE = 0xffc966
+    ORANGE = 0xffa500
+    DARK_ORANGE = 0x996300
 
-    LIGHT_RED: int = 0xff6666
-    RED: int = 0xff0000
-    DARK_RED: int = 0x990000
+    LIGHT_RED = 0xff6666
+    RED = 0xff0000
+    DARK_RED = 0x990000
 
-    WHITE: int = 0xffffff
-    LIGHT_GREY: int = 0xB0B0B0
-    GREY: int = 0x808080
-    DARK_GREY: int = 0x505050
-    DARKER_GREY: int = 0x282828
-    BLACK: int = 0x00000
-    DARK_GRAY = DARK_GREY
+    WHITE = 0xffffff
+    LIGHT_GREY = 0xB0B0B0
     LIGHT_GRAY = LIGHT_GREY
+    """An alias of `LIGHT_GREY`."""
+    GREY = 0x808080
+    GRAY = GREY
+    """An alias of `GREY`."""
+    DARK_GREY = 0x505050
+    DARK_GRAY = DARK_GREY
+    """An alias of `DARK_GREY`."""
+    DARKER_GREY = 0x282828
     DARKER_GRAY = DARKER_GREY
+    """An alias of `DARKER_GREY`."""
+    BLACK = 0x00000
 
-    ORIGINAL_BLURPLE: int = 0x7289da
-    BLURPLE: int = 0x5865F2
-    DISCORD_RED: int = 0xed4245
-    DISCORD_GREEN: int = 0x57f287
-    DISCORD_YELLOW: int = 0xFEE75C
-    DISCORD_FUCHSIA: int = 0xeb459e
-    DISCORD_BACKGROUND: int = 0x36393e
+    ORIGINAL_BLURPLE = 0x7289da
+    BLURPLE = 0x5865F2
+    DISCORD_RED = 0xed4245
+    DISCORD_GREEN = 0x57f287
+    DISCORD_YELLOW = 0xFEE75C
+    DISCORD_FUCHSIA = 0xeb459e
+    DISCORD_BACKGROUND = 0x36393e
     """Discord's dark theme background. For 'colourless' pointy corners on embeds."""
-    EMBED_BACKGROUND: int = 0x2f3136
+    EMBED_BACKGROUND = 0x2f3136
     """Discord's embed background. For 'colourless' rounded corners on embeds."""
 
 
