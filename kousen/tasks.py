@@ -20,18 +20,13 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 
-__all__: list[str] = ["Command", "create_command", "create_listener"]
+__all__: list[str] = ["Task", "create_task"]
 
 
-def create_command():
+def create_task():
     ...
 
 
-# todo maybe add to listeners.py if needed
-def create_listener():
-    ...
-
-
-class Command:
+class Task:
 
     __slots__ = ()
