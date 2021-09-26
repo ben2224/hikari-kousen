@@ -29,6 +29,7 @@ from kousen.errors import *
 from kousen.context import *
 from kousen.modules import *
 from kousen.commands import *
+from kousen.colours import *
 
 __all__: t.Final[list[str]] = [
     *handler.__all__,
@@ -37,4 +38,5 @@ __all__: t.Final[list[str]] = [
     *context.__all__,
     *modules.__all__,
     *commands.__all__,
+    *colours.__all__
 ]
