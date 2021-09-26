@@ -28,6 +28,7 @@ import functools
 import hikari
 
 from kousen.context import Context, PartialContext
+from kousen.colours import Colour
 
 __all__: list[str] = ["Bot"]
 
@@ -121,7 +122,7 @@ class Bot(hikari.GatewayBot):
     owners : Iterable[`int`]
         The IDs or User objects of the users which should be treated as "owners" of the bot.
     default_embed_colour : Optional[:obj:`hikari.Colorish`]
-        The default colour to use in embeds, the default is `0x2F3136` which is "colourless".
+        The default colour to use in embeds, the default is :obj:`kousen.Colour.EMBED_BACKGROUND`.
         (Note: Kousen can only apply this default in :obj:`Context.respond()` but this can be
         used manually when setting colours of other embeds.) You must pass `None` if you do not want a default
         embed colour to be set
@@ -143,7 +144,7 @@ class Bot(hikari.GatewayBot):
 
     def __init__(
         self,
-        *,
+        *args,
         default_prefix: t.Union[
             str,
             t.Iterable[str],
@@ -168,10 +169,10 @@ class Bot(hikari.GatewayBot):
             bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
         ] = True,
         owners: t.Iterable[int] = (),
-        default_embed_colour: t.Optional[hikari.Colorish] = 0x2F3136,
+        default_embed_colour: t.Optional[t.Union[hikari.Colorish]] = Colour.EMBED_BACKGROUND,
         **kwargs,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         # allows us to check cache settings later on
         if (cache_settings := kwargs.get("cache_settings")) is not None:
             self._cache_components = cache_settings.components
@@ -186,6 +187,7 @@ class Bot(hikari.GatewayBot):
         self._mention_prefixes: list[str] = []
         if mention_prefix is True or default_prefix is None:
             self.subscribe(hikari.StartedEvent, self._setup_mention_prefixes)
+            self._prefix_getter = functools.partial(_base_getter, return_object=[])
         else:
             if isinstance(default_prefix, str):
                 self._prefix_getter = functools.partial(
@@ -343,3 +345,34 @@ class Bot(hikari.GatewayBot):
             )
         self._custom_attributes[name] = new_attribute_value
         return self
+
+    def load_extension(self):
+        ...
+
+    def unload_extension(self):
+        ...
+
+    def reload_extension(self):
+        ...
+
+    def add_module(self):
+        ...
+
+    def remove_module(self):
+        ...
+
+    def edit_bot(
+            self,
+            *,
+            default_prefix=None,
+            mention_prefix=None,
+            default_parser=None,
+            weak_command_search=None,
+            case_insensitive_commands=None,
+            case_insensitive_prefixes=None,
+            ignore_bots=None,
+            owners=None,
+            default_embed_colour=None,
+    ) -> None:
+        # todo instead of this impl, have them all as properties with setters (like in test.py)
+        ...

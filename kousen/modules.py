@@ -19,7 +19,6 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-from __future__ import annotations
 
 __all__: list[str] = ["Module", "ModuleExtender"]
 
@@ -28,25 +27,32 @@ class _BaseModule:
 
     __slots__ = ()
 
-    async def add_command(self):
+    def add_command(self):
         ...
 
-    async def create_command(self):
+    def with_command(self):
         ...
 
-    async def add_listener(self):
+    def add_listener(self):
         ...
 
-    async def create_listener(self):
+    def with_listener(self):
         ...
 
-    async def add_task(self):
+    def add_task(self):
         ...
 
-    async def create_task(self):
+    def with_task(self):
         ...
 
-    async def add_check(self):
+    def add_check(self):
+        ...
+
+    def add_custom_check(self):
+        ...
+
+    def with_custom_check(self):
+        # Decorate a function to add a custom check to module
         ...
 
 
@@ -61,12 +67,15 @@ class Module(_BaseModule):
         ...
 
     async def load_extender(self):
+        # Allow both class and path?
         ...
 
     async def add_cooldown(self):
+        # module level command, using a command in the module will trigger cooldown for all
         ...
 
     async def add_command_cooldown(self):
+        # adds a separate/independent cooldown per command in the module
         ...
 
 
