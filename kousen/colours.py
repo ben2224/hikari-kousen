@@ -19,45 +19,44 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-
 from hikari.internal.enums import Enum
 
 __all__: list[str] = ["Colour", "Color"]
 
 
 class Colour(int, Enum):
-    MAGENTA = 0xe91e63
-    DARK_MAGENTA = 0xad1457
+    MAGENTA = 0xE91E63
+    DARK_MAGENTA = 0xAD1457
 
-    PURPLE = 0x9b59b6
-    DARK_PURPLE = 0x71368a
+    PURPLE = 0x9B59B6
+    DARK_PURPLE = 0x71368A
 
-    LIGHT_BLUE = 0x00ccff
-    BLUE = 0x3498db
+    LIGHT_BLUE = 0x00CCFF
+    BLUE = 0x3498DB
     DARK_BLUE = 0x206694
 
-    LIGHT_TEAL = 0x66ffff
-    TEAL = 0x00e6e6
+    LIGHT_TEAL = 0x66FFFF
+    TEAL = 0x00E6E6
     DARK_TEAL = 0x009999
 
-    LIGHT_GREEN = 0x66ff66
-    GREEN = 0x00cc00
+    LIGHT_GREEN = 0x66FF66
+    GREEN = 0x00CC00
     DARK_GREEN = 0x006600
 
-    LIGHT_YELLOW = 0xffff66
-    YELLOW = 0xffff00
+    LIGHT_YELLOW = 0xFFFF66
+    YELLOW = 0xFFFF00
 
-    GOLD = 0xffd700
+    GOLD = 0xFFD700
 
-    LIGHT_ORANGE = 0xffc966
-    ORANGE = 0xffa500
+    LIGHT_ORANGE = 0xFFC966
+    ORANGE = 0xFFA500
     DARK_ORANGE = 0x996300
 
-    LIGHT_RED = 0xff6666
-    RED = 0xff0000
+    LIGHT_RED = 0xFF6666
+    RED = 0xFF0000
     DARK_RED = 0x990000
 
-    WHITE = 0xffffff
+    WHITE = 0xFFFFFF
     LIGHT_GREY = 0xB0B0B0
     LIGHT_GRAY = LIGHT_GREY
     """An alias of `LIGHT_GREY`."""
@@ -72,15 +71,15 @@ class Colour(int, Enum):
     """An alias of `DARKER_GREY`."""
     BLACK = 0x00000
 
-    ORIGINAL_BLURPLE = 0x7289da
+    ORIGINAL_BLURPLE = 0x7289DA
     BLURPLE = 0x5865F2
-    DISCORD_RED = 0xed4245
-    DISCORD_GREEN = 0x57f287
+    DISCORD_RED = 0xED4245
+    DISCORD_GREEN = 0x57F287
     DISCORD_YELLOW = 0xFEE75C
-    DISCORD_FUCHSIA = 0xeb459e
-    DISCORD_BACKGROUND = 0x36393e
+    DISCORD_FUCHSIA = 0xEB459E
+    DISCORD_BACKGROUND = 0x36393E
     """Discord's dark theme background. For 'colourless' pointy corners on embeds."""
-    EMBED_BACKGROUND = 0x2f3136
+    EMBED_BACKGROUND = 0x2F3136
     """Discord's embed background. For 'colourless' rounded corners on embeds."""
 
 
