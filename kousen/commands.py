@@ -19,19 +19,21 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+import typing as t
 
-__all__: list[str] = ["Command", "create_command", "create_listener"]
+__all__: list[str] = ["Command", "create_command"]
 
 
 def create_command():
     ...
 
 
-# todo maybe add to listeners.py if needed
-def create_listener():
-    ...
-
-
 class Command:
 
     __slots__ = ()
+
+    def parse_content_for_args(self):
+        ...
+
+    def invoke(self):
+        ...
