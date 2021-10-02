@@ -19,13 +19,30 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+from __future__ import annotations
+import typing as t
+from hikari.events import Event
+
+if t.TYPE_CHECKING:
+    from kousen.commands import Command
+    from kousen.events import _Events, Listener
+    from kousen.tasks import Task
+    from kousen.context import Context
 
 __all__: list[str] = ["Module", "ModuleExtender"]
 
 
 class _BaseModule:
 
-    __slots__ = ()
+    __slots__ = ("_commands", "_listeners", "_tasks")
+
+    def __init__(self):
+        self._commands: list[Command] = []
+        """List of extender's command objects."""
+        self._listeners: list[Listener] = []
+        """List of extender's listeners."""
+        self._tasks: list[Task] = []
+        """List of extender's task objects."""
 
     def add_command(self):
         ...
@@ -45,20 +62,55 @@ class _BaseModule:
     def with_task(self):
         ...
 
-    def add_check(self):
-        ...
-
-    def add_custom_check(self):
-        ...
-
-    def with_custom_check(self):
-        # Decorate a function to add a custom check to module
+    def parse_content_for_command(self):
         ...
 
 
-class Module(_BaseModule):
+class Module:
 
-    __slots__ = ()
+    __slots__ = (
+        "_name",
+        "_names_to_commands",
+        "_listeners",
+        "_names_to_tasks",
+        "_checks",
+        "_parser",
+        "_cooldowns",
+        "_error_handler",
+    )
+
+    def __init__(self, *, name: str):
+        self._name: str = name
+        """The module's name."""
+        self._names_to_commands: dict[str, Command] = {}
+        """Mapping of command name against command object. Note that this does not include aliases."""
+        self._listeners: dict[t.Union[Event, _Events], list[Listener]] = {}
+        """Mapping of event type against its listeners."""
+        self._names_to_tasks: dict[str, Task] = {}
+        """Mapping of task name to task object."""
+        self._checks: list[t.Callable[[Context], t.Coroutine[None, None, bool]]] = []
+        """List of local checks that are applied to all commands in the module."""
+        self._parser: t.Optional[str] = None
+        self._cooldowns = None  # todo implement cooldowns
+        self._error_handler = None  # todo
+
+    def add_command(self):
+        ...
+
+    def with_command(self):
+        ...
+
+    def add_listener(self):
+        ...
+
+    def with_listener(self):
+        ...
+
+    def add_task(self):
+        ...
+
+    def with_task(self):
+        ...
 
     async def set_parser(self):
         ...
@@ -78,7 +130,46 @@ class Module(_BaseModule):
         # adds a separate/independent cooldown per command in the module
         ...
 
+    def add_check(self):
+        ...
 
-class ModuleExtender(_BaseModule):
+    def add_custom_check(self):
+        ...
 
-    __slots__ = ()
+    def with_custom_check(self):
+        # Decorate a function to add it as a custom check to module
+        ...
+
+    def _parse_content_for_command(self):
+        ...
+
+
+class ModuleExtender:
+
+    __slots__ = ("_commands", "_listeners", "_tasks")
+
+    def __init__(self):
+        self._commands: list[Command] = []
+        """List of extender's command objects."""
+        self._listeners: list[Listener] = []
+        """List of extender's listeners."""
+        self._tasks: list[Task] = []
+        """List of extender's task objects."""
+
+    def add_command(self):
+        ...
+
+    def with_command(self):
+        ...
+
+    def add_listener(self):
+        ...
+
+    def with_listener(self):
+        ...
+
+    def add_task(self):
+        ...
+
+    def with_task(self):
+        ...
