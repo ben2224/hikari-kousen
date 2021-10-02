@@ -42,5 +42,5 @@ __all__: t.Final[list[str]] = [
     *events.__all__,
     *handler.__all__,
     *modules.__all__,
-    *tasks.__all__
+    *tasks.__all__,
 ]
