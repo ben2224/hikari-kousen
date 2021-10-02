@@ -33,7 +33,7 @@ from kousen.colours import Colour
 if t.TYPE_CHECKING:
     from kousen.modules import Module
 
-__all__: list[str] = ["Bot"]
+__all__: list[str] = ["Bot", "loader"]
 
 _LOGGER = logging.getLogger("kousen")
 

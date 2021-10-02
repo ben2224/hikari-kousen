@@ -32,40 +32,6 @@ if t.TYPE_CHECKING:
 __all__: list[str] = ["Module", "ModuleExtender"]
 
 
-class _BaseModule:
-
-    __slots__ = ("_commands", "_listeners", "_tasks")
-
-    def __init__(self):
-        self._commands: list[Command] = []
-        """List of extender's command objects."""
-        self._listeners: list[Listener] = []
-        """List of extender's listeners."""
-        self._tasks: list[Task] = []
-        """List of extender's task objects."""
-
-    def add_command(self):
-        ...
-
-    def with_command(self):
-        ...
-
-    def add_listener(self):
-        ...
-
-    def with_listener(self):
-        ...
-
-    def add_task(self):
-        ...
-
-    def with_task(self):
-        ...
-
-    def parse_content_for_command(self):
-        ...
-
-
 class Module:
 
     __slots__ = (

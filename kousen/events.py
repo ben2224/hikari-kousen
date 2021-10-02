@@ -23,7 +23,7 @@ import typing as t
 from hikari.internal.enums import Enum
 from hikari.events import Event
 
-__all__: list[str] = ["GeneralEvents"]
+__all__: list[str] = ["GeneralEvents", "Listener", "create_listener"]
 
 
 def create_listener(event_type, *, pass_bot=False):
