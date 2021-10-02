@@ -22,17 +22,32 @@
 from __future__ import annotations
 import logging
 import typing as t
-from inspect import iscoroutinefunction
+import inspect
 import functools
-
+import importlib
 import hikari
 
 from kousen.context import Context, PartialContext
 from kousen.colours import Colour
 
+if t.TYPE_CHECKING:
+    from kousen.modules import Module
+
 __all__: list[str] = ["Bot"]
 
 _LOGGER = logging.getLogger("kousen")
+
+
+class _Loader:
+    def __init__(self, callback: t.Callable[["Bot"], t.Any]) -> None:
+        self._callback: t.Callable[["Bot"], t.Any] = callback
+
+    def __call__(self, bot) -> None:
+        self._callback(bot)
+
+
+def loader(callback: t.Callable[["Bot"], t.Any]):
+    return _Loader(callback)
 
 
 async def _prefix_getter_with_callback(
@@ -57,7 +72,7 @@ async def _prefix_getter_with_callback(
 def _base_bool_getter_handler(callable_or_bool, name: str):
     if isinstance(callable_or_bool, bool):
         return functools.partial(_base_getter, return_object=callable_or_bool)
-    elif iscoroutinefunction(callable_or_bool):
+    elif inspect.iscoroutinefunction(callable_or_bool):
         return functools.partial(
             _base_getter_with_callback,
             callback=callable_or_bool,
@@ -169,7 +184,9 @@ class Bot(hikari.GatewayBot):
             bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
         ] = True,
         owners: t.Iterable[int] = (),
-        default_embed_colour: t.Optional[t.Union[hikari.Colorish]] = Colour.EMBED_BACKGROUND,
+        default_embed_colour: t.Optional[
+            t.Union[hikari.Colorish]
+        ] = Colour.EMBED_BACKGROUND,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -201,7 +218,7 @@ class Bot(hikari.GatewayBot):
                     _base_getter, return_object=prefix_list
                 )
 
-            if iscoroutinefunction(default_prefix):
+            if inspect.iscoroutinefunction(default_prefix):
                 self._prefix_getter = functools.partial(
                     _prefix_getter_with_callback, callback=default_prefix
                 )
@@ -216,7 +233,7 @@ class Bot(hikari.GatewayBot):
                 _base_getter, return_object=default_parser
             )
 
-        elif iscoroutinefunction(default_parser):
+        elif inspect.iscoroutinefunction(default_parser):
             self._default_parser_getter = functools.partial(
                 _base_getter_with_callback,
                 callback=default_parser,
@@ -253,6 +270,7 @@ class Bot(hikari.GatewayBot):
 
         self._custom_attributes: dict[str, t.Any] = {"ok": 4}
         self._default_embed_colour = default_embed_colour
+        self._extensions_to_modules: dict[str, list[Module]] = {}
 
     async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
@@ -275,7 +293,7 @@ class Bot(hikari.GatewayBot):
 
         Parameters
         ----------
-        name : :obj:`str`
+        name : `str`
             The name to be used when accessing this attribute.
         attribute_value : :obj:`~typing.Any`
             The value returned when the the attribute is accessed.
@@ -316,14 +334,14 @@ class Bot(hikari.GatewayBot):
         self._custom_attributes[name] = attribute_value
         return self
 
-    def set_custom_attribute(self, name: str, new_attribute_value: t.Any) -> "Bot":
+    def edit_custom_attribute(self, name: str, new_attribute_value: t.Any) -> "Bot":
         """
         Set a new value for a previously added custom attribute. See :obj:`add_custom_attribute` for
         details on adding a custom attribute.
 
         Parameters
         ----------
-        name : :obj:`str`
+        name : `str`
             The name of the existing attribute.
         new_attribute_value : :obj:`~typing.Any`
             The new value of the attribute.
@@ -346,13 +364,108 @@ class Bot(hikari.GatewayBot):
         self._custom_attributes[name] = new_attribute_value
         return self
 
-    def load_extension(self):
+    def delete_custom_attribute(self, name: str) -> "Bot":
+        """
+        Deletes a previously set custom attribute.
+
+        Parameters
+        ----------
+        name : `str`
+            The name of the existing attribute.
+
+        Returns
+        -------
+        :obj:`Bot`
+            The instance of the bot to allow for chained calls.
+
+        Raises
+        ------
+        ValueError
+            If there is no existing custom attribute with the name passed.
+        """
+        name = str(name)
+        if name not in self._custom_attributes:
+            raise ValueError(f"There is no custom attribute named '{name}'")
+        self._custom_attributes.pop(name)
+        return self
+
+    def load_extensions(self, extension_path: str, *extension_paths: str):
+        """
+        Load an external extension file into the bot from its path, which can contain modules.
+
+        Parameters
+        ----------
+        extension_path : `str`
+            The name of the path to load from. The path must be in the format <directory>.<file> or <directory>/<file>.
+            (E.g. `"project.modules.admin"` or `"project/modules/admin"`.)
+            Note that any additional slashes or dots are stripped.
+
+        Other Parameters
+        ----------------
+        extension_paths : `str`
+            Addition paths to load from, they must follow the same rules as above.
+
+        Examples
+        --------
+        In order for this to work, the extension must have a function decorated with :obj:`loader` that takes
+        one positional argument of type :obj:`Bot`
+
+        .. code-block:: python
+            import kousen
+
+            admin_module = kousen.Module(...)
+
+            ...
+
+            @kousen.loader
+            def admin_loader(bot: kousen.Bot):
+                bot.add_module(admin_module)
+
+        Returns
+        -------
+        :obj:`Bot`
+            The instance of the bot to allow for chained calls.
+        """
+
+        if extension_path in self._extensions_to_modules:
+            _LOGGER.error(
+                f"The extension {extension_path} failed to load because it was already loaded."
+            )
+
+        extension = importlib.import_module(extension_path)
+        for _, member in inspect.getmembers(extension):
+            if isinstance(member, _Loader):
+                member(self)
+                _LOGGER.info(f"Extension {extension_path} was successfully loaded.")
+                break
+        else:
+            _LOGGER.error(
+                f"The extension {extension_path} failed to load because no loader function was found."
+            )
+
+        for _extension_path in extension_paths:
+            if _extension_path in self._extensions_to_modules:
+                _LOGGER.error(
+                    f"The extension {_extension_path} failed to load because it was already loaded."
+                )
+
+            _extension = importlib.import_module(_extension_path)
+            for _, member in inspect.getmembers(_extension):
+                if isinstance(member, _Loader):
+                    member(self)
+                    _LOGGER.info(f"Extension {extension_path} was successfully loaded.")
+                    break
+            else:
+                _LOGGER.error(
+                    f"The extension {extension_path} failed to load because no loader function was found."
+                )
+
+        return self
+
+    def unload_extensions(self, *extensions):
         ...
 
-    def unload_extension(self):
-        ...
-
-    def reload_extension(self):
+    def reload_extensions(self, *extensions):
         ...
 
     def add_module(self):
@@ -362,17 +475,17 @@ class Bot(hikari.GatewayBot):
         ...
 
     def edit_bot(
-            self,
-            *,
-            default_prefix=None,
-            mention_prefix=None,
-            default_parser=None,
-            weak_command_search=None,
-            case_insensitive_commands=None,
-            case_insensitive_prefixes=None,
-            ignore_bots=None,
-            owners=None,
-            default_embed_colour=None,
+        self,
+        *,
+        default_prefix=None,
+        mention_prefix=None,
+        default_parser=None,
+        weak_command_search=None,
+        case_insensitive_commands=None,
+        case_insensitive_prefixes=None,
+        ignore_bots=None,
+        owners=None,
+        default_embed_colour=None,
     ) -> None:
         # todo instead of this impl, have them all as properties with setters (like in test.py)
         ...
