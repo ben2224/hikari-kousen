@@ -23,20 +23,24 @@
 from __future__ import annotations
 import typing as t
 
-from kousen.handler import *
 from kousen.checks import *
-from kousen.errors import *
-from kousen.context import *
-from kousen.modules import *
-from kousen.commands import *
 from kousen.colours import *
+from kousen.commands import *
+from kousen.context import *
+from kousen.errors import *
+from kousen.events import *
+from kousen.handler import *
+from kousen.modules import *
+from kousen.tasks import *
 
 __all__: t.Final[list[str]] = [
-    *handler.__all__,
     *checks.__all__,
-    *errors.__all__,
-    *context.__all__,
-    *modules.__all__,
+    *colours.__all__,
     *commands.__all__,
-    *colours.__all__
+    *context.__all__,
+    *errors.__all__,
+    *events.__all__,
+    *handler.__all__,
+    *modules.__all__,
+    *tasks.__all__
 ]
