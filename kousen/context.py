@@ -23,7 +23,6 @@ from __future__ import annotations
 import datetime
 import functools
 import typing as t
-
 import hikari
 
 if t.TYPE_CHECKING:
@@ -215,7 +214,7 @@ class PartialContext:
 class Context(PartialContext):
     """Context"""
 
-    __slots__ = ("_prefix", "_invoked_with", "_command", "_parser")
+    __slots__ = ("_prefix", "_invoked_with", "_command", "_parser", "_args")
 
     def __init__(
         self,
@@ -226,12 +225,14 @@ class Context(PartialContext):
         parser: str,
         invoked_with: str,
         command: Command,
+        args,
     ) -> None:
         super().__init__(bot=bot, message=message)
         self._prefix: str = prefix
         self._parser: str = parser
         self._invoked_with: str = invoked_with
         self._command: Command = command
+        self._args: t.Iterable[t.Any] = args
 
     @property
     def prefix(self) -> str:
@@ -254,8 +255,8 @@ class Context(PartialContext):
         return self._command.module
 
     @property
-    def args(self) -> tuple[str]:
-        return self._command.args
+    def args(self) -> t.Iterable[t.Any]:
+        return self._args
 
     @classmethod
     def _create_from_partial_context(
@@ -265,6 +266,7 @@ class Context(PartialContext):
         parser: str,
         invoked_with: str,
         command: Command,
+        args: tuple[str],
     ) -> "Context":
         return cls(
             bot=partial_context._bot,
@@ -273,4 +275,5 @@ class Context(PartialContext):
             parser=parser,
             invoked_with=invoked_with,
             command=command,
+            args=args,
         )
