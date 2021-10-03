@@ -457,18 +457,20 @@ class Bot(hikari.GatewayBot):
                 _LOGGER.error(
                     f"The extension {_extension_path} failed to load because it was already loaded."
                 )
-
-            _extension = importlib.import_module(_extension_path)
-            for _, member in inspect.getmembers(_extension):
-                if isinstance(member, _Loader):
-                    member(self)
-                    self._extensions.append(_extension_path)
-                    _LOGGER.info(f"Extension {_extension_path} was successfully loaded.")
-                    break
-            else:
-                _LOGGER.error(
-                    f"The extension {_extension_path} failed to load because no loader function was found."
-                )
+            try:
+                _extension = importlib.import_module(_extension_path)
+                for _, member in inspect.getmembers(_extension):
+                    if isinstance(member, _Loader):
+                        member(self)
+                        self._extensions.append(_extension_path)
+                        _LOGGER.info(f"Extension {_extension_path} was successfully loaded.")
+                        break
+                else:
+                    _LOGGER.error(
+                        f"The extension {_extension_path} failed to load because no loader function was found."
+                    )
+            except Exception as ex:
+                _LOGGER.error(f"The extension {_extension_path} failed to load.", exc_info=ex)
 
         return self
 
@@ -505,19 +507,21 @@ class Bot(hikari.GatewayBot):
                 _LOGGER.error(
                     f"The extension {_extension_path} failed to unload because it was not loaded."
                 )
-
-            _extension = importlib.import_module(_extension_path)
-            for _, member in inspect.getmembers(_extension):
-                if isinstance(member, _UnLoader):
-                    member(self)
-                    self._extensions.append(_extension_path)
-                    sys.modules.pop(_extension_path)
-                    _LOGGER.info(f"Extension {_extension_path} was successfully unloaded.")
-                    break
-            else:
-                _LOGGER.error(
-                    f"The extension {_extension_path} failed to unload because no unloader function was found."
-                )
+            try:
+                _extension = importlib.import_module(_extension_path)
+                for _, member in inspect.getmembers(_extension):
+                    if isinstance(member, _UnLoader):
+                        member(self)
+                        self._extensions.remove(_extension_path)
+                        sys.modules.pop(_extension_path)
+                        _LOGGER.info(f"Extension {_extension_path} was successfully unloaded.")
+                        break
+                else:
+                    _LOGGER.error(
+                        f"The extension {_extension_path} failed to unload because no unloader function was found."
+                    )
+            except Exception as ex:
+                _LOGGER.error(f"The extension {_extension_path} failed to unload.", exc_info=ex)
 
         return self
 
