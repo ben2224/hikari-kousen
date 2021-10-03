@@ -463,14 +463,18 @@ class Bot(hikari.GatewayBot):
                     if isinstance(member, _Loader):
                         member(self)
                         self._extensions.append(_extension_path)
-                        _LOGGER.info(f"Extension {_extension_path} was successfully loaded.")
+                        _LOGGER.info(
+                            f"Extension {_extension_path} was successfully loaded."
+                        )
                         break
                 else:
                     _LOGGER.error(
                         f"The extension {_extension_path} failed to load because no loader function was found."
                     )
             except Exception as ex:
-                _LOGGER.error(f"The extension {_extension_path} failed to load.", exc_info=ex)
+                _LOGGER.error(
+                    f"The extension {_extension_path} failed to load.", exc_info=ex
+                )
 
         return self
 
@@ -514,14 +518,18 @@ class Bot(hikari.GatewayBot):
                         member(self)
                         self._extensions.remove(_extension_path)
                         sys.modules.pop(_extension_path)
-                        _LOGGER.info(f"Extension {_extension_path} was successfully unloaded.")
+                        _LOGGER.info(
+                            f"Extension {_extension_path} was successfully unloaded."
+                        )
                         break
                 else:
                     _LOGGER.error(
                         f"The extension {_extension_path} failed to unload because no unloader function was found."
                     )
             except Exception as ex:
-                _LOGGER.error(f"The extension {_extension_path} failed to unload.", exc_info=ex)
+                _LOGGER.error(
+                    f"The extension {_extension_path} failed to unload.", exc_info=ex
+                )
 
         return self
 
@@ -589,7 +597,9 @@ class Bot(hikari.GatewayBot):
                 )
             except Exception as ex:
                 sys.modules[_extension_path] = old_extension
-                _LOGGER.error(f"The extension {_extension_path} failed to reload.", exc_info=ex)
+                _LOGGER.error(
+                    f"The extension {_extension_path} failed to reload.", exc_info=ex
+                )
 
         return self
 
