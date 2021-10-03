@@ -33,3 +33,11 @@ class CheckError(KousenError):
     """The base exception for all check errors."""
 
     __slots__ = ()
+
+
+class _MissingUnload(Exception):
+    ...
+
+
+class _MissingLoad(Exception):
+    ...
