@@ -26,7 +26,6 @@ import typing as t
 import inspect
 import functools
 import importlib
-import sys
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import hikari
 
@@ -140,9 +139,6 @@ class Bot(hikari.GatewayBot):
         The default parser to use for parsing message content for command arguments. Defaults to a whitespace.
         (Note that regardless of this parser, commands and subcommands should always be seperated
         by a whitespace, as this option only affects argument parsing.)
-    weak_command_search : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
-        If `True`, then the bot will parse for the prefix throughout the message content (instead of just the
-        start), allowing for commands to be called at any point in the message. Defaults to False.
     case_insensitive_commands : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Whether or not commands should be case-insensitive or not. Defaults to `False` (commands are case-sensitive).
     case_insensitive_prefixes : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
@@ -166,13 +162,13 @@ class Bot(hikari.GatewayBot):
         "_prefix_getter",
         "_mention_prefixes",
         "_default_parser_getter",
-        "_weak_command_search",
         "_case_insensitive_commands",
         "_case_insensitive_prefixes",
         "_ignore_bots",
         "_owners",
         "_custom_attributes",
         "_default_embed_colour",
+        "scheduler"
     )
 
     def __init__(
@@ -189,9 +185,6 @@ class Bot(hikari.GatewayBot):
         default_parser: t.Union[
             str, t.Callable[[Context], t.Coroutine[None, None, str]]
         ] = " ",
-        weak_command_search: t.Union[
-            bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
-        ] = False,
         case_insensitive_commands: t.Union[
             bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
         ] = False,
@@ -202,9 +195,7 @@ class Bot(hikari.GatewayBot):
             bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
         ] = True,
         owners: t.Iterable[int] = (),
-        default_embed_colour: t.Optional[
-            t.Union[hikari.Colorish]
-        ] = Colour.EMBED_BACKGROUND,
+        default_embed_colour: t.Optional[hikari.Colorish] = Colour.EMBED_BACKGROUND,
         scheduler: AsyncIOScheduler = None,
         **kwargs,
     ) -> None:
@@ -230,21 +221,22 @@ class Bot(hikari.GatewayBot):
                     _base_getter, return_object=[default_prefix]
                 )
 
-            if isinstance(default_prefix, t.Iterable):
+            elif isinstance(default_prefix, t.Iterable):
                 prefix_list: list[str] = []
                 prefix_list.extend(list(*map(str, default_prefix)))
                 self._prefix_getter = functools.partial(
                     _base_getter, return_object=prefix_list
                 )
 
-            if inspect.iscoroutinefunction(default_prefix):
+            elif inspect.iscoroutinefunction(default_prefix):
                 self._prefix_getter = functools.partial(
                     _prefix_getter_with_callback, callback=default_prefix
                 )
 
             else:
                 raise TypeError(
-                    f"Prefix must be either a string, or iterable of strings, or a coroutine, not type {type(default_prefix)}"
+                    f"Prefix must be either a string, or iterable of strings, or a coroutine, not type "
+                    f"{type(default_prefix)}"
                 )
 
         if isinstance(default_parser, str):
@@ -264,9 +256,6 @@ class Bot(hikari.GatewayBot):
                 f"Parser must be either a string or a coroutine, not type {type(default_parser)}"
             )
 
-        self._weak_command_search = _base_bool_getter_handler(
-            weak_command_search, "Weak command search"
-        )
         self._case_insensitive_commands = _base_bool_getter_handler(
             case_insensitive_commands, "Case insensitive commands"
         )
@@ -294,6 +283,140 @@ class Bot(hikari.GatewayBot):
         self._custom_attributes: dict[str, t.Any] = {"ok": 4}
         self._default_embed_colour = default_embed_colour
         self._extensions: list[str] = []
+        self._names_to_modules: dict[str, Module] = {}
+
+    @property
+    def scheduler(self) -> AsyncIOScheduler:
+        """
+        The AsyncIO scheduler instance being used to manage tasks and kousen events.
+
+        Returns
+        -------
+        :obj:`apscheduler.schedulers.asyncio.AsyncIOScheduler`
+            The AsyncioI0 scheduler.
+        """
+        return self._scheduler
+
+    @property
+    def prefix_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, t.Iterable[str]]]:
+        """
+        A getter that returns the prefixes used when checking for prefixes in message content.
+
+        Returns
+        -------
+        Callable[[:obj:`PartialContext`], Coroutine[`None`, `None`, Iterable[`str`]]]
+            The prefix getter.
+        """
+        return self._prefix_getter
+
+    @property
+    def mention_prefixes(self) -> list[str]:
+        """
+        The mention prefixes to use as additional prefixes, essentially the bot's ids mention.
+
+        Returns
+        -------
+        `list[str]`
+            The mention prefixes.
+        """
+        return self._mention_prefixes
+
+    @property
+    def default_parser_getter(self) -> t.Callable[[Context], t.Coroutine[None, None, str]]:
+        """
+        A getter that returns the default parser
+        to use when parsing for args, overwritten by module and command individual parsers.
+
+        Returns
+        -------
+        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+            The parser getter.
+        """
+        return self._default_parser_getter
+
+    @property
+    def case_insensitive_commands_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+        """
+        A getter that determines whether or not commands are case insensitive.
+
+        Returns
+        -------
+        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+            The case insensitive commands getter.
+        """
+        return self._case_insensitive_commands
+
+    @property
+    def case_insensitive_prefixes_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+        """
+        A getter that determines whether or not prefixes are case insensitive.
+
+        Returns
+        -------
+        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+            The case insensitive prefixes getter.
+        """
+        return self._case_insensitive_prefixes
+
+    @property
+    def ignore_bots_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+        """
+        A getter that determines whether or not the bot should invoke commands when a bot sent the message.
+
+        Returns
+        -------
+        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+            The ignore bots getter.
+        """
+        return self._ignore_bots
+
+    @property
+    def owners(self) -> list[int]:
+        """
+        A list of ids of users who should be treated as owners of the bot.
+
+        Returns
+        -------
+        `list[int]`
+            The owner's user ids.
+        """
+        return self._owners
+
+    @property
+    def default_embed_colour(self) -> t.Optional[hikari.Colorish]:
+        """
+        The default embed colour used when using :obj:`Context.respond`.
+
+        Returns
+        -------
+        Optional[`hikari.Colorish`]
+            The default embed colour.
+        """
+        return self._default_embed_colour
+
+    @property
+    def extensions(self) -> list[str]:
+        """
+        A list of the currently loaded extensions (path names).
+
+        Returns
+        -------
+        `list[str]`
+            The bot's extensions.
+        """
+        return self._extensions
+
+    @property
+    def modules(self) -> t.Iterable[Module]:
+        """
+        An iterable of the bot's modules.
+
+        Returns
+        -------
+        `list[str]`
+            The bot's modules.
+        """
+        return self._names_to_modules.values()
 
     async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
@@ -607,20 +730,4 @@ class Bot(hikari.GatewayBot):
         ...
 
     def remove_module(self):
-        ...
-
-    def edit_bot(
-        self,
-        *,
-        default_prefix=None,
-        mention_prefix=None,
-        default_parser=None,
-        weak_command_search=None,
-        case_insensitive_commands=None,
-        case_insensitive_prefixes=None,
-        ignore_bots=None,
-        owners=None,
-        default_embed_colour=None,
-    ) -> None:
-        # todo instead of this impl, have them all as properties with setters (like in test.py)
         ...
