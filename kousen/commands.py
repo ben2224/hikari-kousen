@@ -21,14 +21,14 @@
 #  SOFTWARE.
 import typing as t
 
-__all__: list[str] = ["Command", "create_command"]
+__all__: list[str] = ["MessageCommand", "create_message_command"]
 
 
-def create_command():
+def create_message_command():
     ...
 
 
-class Command:
+class MessageCommand:
 
     __slots__ = ()
 

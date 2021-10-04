@@ -24,7 +24,7 @@ import typing as t
 from hikari.events import Event
 
 if t.TYPE_CHECKING:
-    from kousen.commands import Command
+    from kousen.commands import MessageCommand
     from kousen.events import _Events, Listener
     from kousen.tasks import Task
     from kousen.context import MessageContext
@@ -36,7 +36,7 @@ class Module:
 
     __slots__ = (
         "_name",
-        "_names_to_commands",
+        "_names_to_message_commands",
         "_listeners",
         "_names_to_tasks",
         "_checks",
@@ -48,8 +48,8 @@ class Module:
     def __init__(self, *, name: str):
         self._name: str = name
         """The module's name."""
-        self._names_to_commands: dict[str, Command] = {}
-        """Mapping of command name against command object. Note that this does not include aliases."""
+        self._names_to_message_commands: dict[str, MessageCommand] = {}
+        """Mapping of message command name against message command object. Note that this does not include aliases."""
         self._listeners: dict[t.Union[Event, _Events], list[Listener]] = {}
         """Mapping of event type against its listeners."""
         self._names_to_tasks: dict[str, Task] = {}
@@ -60,10 +60,10 @@ class Module:
         self._cooldowns = None  # todo implement cooldowns
         self._error_handler = None  # todo
 
-    def add_command(self):
+    def add_message_command(self):
         ...
 
-    def with_command(self):
+    def with_message_command(self):
         ...
 
     def add_listener(self):
@@ -112,20 +112,20 @@ class Module:
 
 class ModuleExtender:
 
-    __slots__ = ("_commands", "_listeners", "_tasks")
+    __slots__ = ("_message_commands", "_listeners", "_tasks")
 
     def __init__(self):
-        self._commands: list[Command] = []
-        """List of extender's command objects."""
+        self._message_commands: list[MessageCommand] = []
+        """List of extender's message command objects."""
         self._listeners: list[Listener] = []
         """List of extender's listeners."""
         self._tasks: list[Task] = []
         """List of extender's task objects."""
 
-    def add_command(self):
+    def add_message_command(self):
         ...
 
-    def with_command(self):
+    def with_message_command(self):
         ...
 
     def add_listener(self):
