@@ -27,7 +27,7 @@ if t.TYPE_CHECKING:
     from kousen.commands import Command
     from kousen.events import _Events, Listener
     from kousen.tasks import Task
-    from kousen.context import Context
+    from kousen.context import MessageContext
 
 __all__: list[str] = ["Module", "ModuleExtender"]
 
@@ -54,7 +54,7 @@ class Module:
         """Mapping of event type against its listeners."""
         self._names_to_tasks: dict[str, Task] = {}
         """Mapping of task name to task object."""
-        self._checks: list[t.Callable[[Context], t.Coroutine[None, None, bool]]] = []
+        self._checks: list[t.Callable[[MessageContext], t.Coroutine[None, None, bool]]] = []
         """List of local checks that are applied to all commands in the module."""
         self._parser: t.Optional[str] = None
         self._cooldowns = None  # todo implement cooldowns

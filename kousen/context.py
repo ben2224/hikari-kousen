@@ -30,10 +30,10 @@ if t.TYPE_CHECKING:
     from kousen.commands import Command
     from kousen.modules import Module
 
-__all__: list[str] = ["PartialContext", "Context"]
+__all__: list[str] = ["PartialMessageContext", "MessageContext"]
 
 
-class PartialContext:
+class PartialMessageContext:
     """Partial context"""
 
     __slots__ = ("_bot", "_message")
@@ -175,7 +175,7 @@ class PartialContext:
         ] = hikari.UNDEFINED,
     ) -> hikari.Message:
         """
-        An alias for `context.message.respond()``. See hikari's documentation for further details.
+        An alias for `MessageContext.message.respond()``. See hikari's documentation for further details.
 
         Notes
         ----
@@ -214,7 +214,7 @@ class PartialContext:
         )
 
 
-class Context(PartialContext):
+class MessageContext(PartialMessageContext):
     """Context"""
 
     __slots__ = ("_prefix", "_invoked_with", "_command", "_parser", "_args")
@@ -264,13 +264,13 @@ class Context(PartialContext):
     @classmethod
     def _create_from_partial_context(
         cls,
-        partial_context: PartialContext,
+        partial_context: PartialMessageContext,
         prefix: str,
         parser: str,
         invoked_with: str,
         command: Command,
         args: tuple[str],
-    ) -> "Context":
+    ) -> "MessageContext":
         return cls(
             bot=partial_context._bot,
             message=partial_context._message,

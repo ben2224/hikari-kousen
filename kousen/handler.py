@@ -29,7 +29,7 @@ import importlib
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import hikari
 
-from kousen.context import Context, PartialContext
+from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload
 
@@ -66,7 +66,7 @@ def unloader(callback: t.Callable[["Bot"], t.Any]) -> _UnLoader:
 
 
 async def _prefix_getter_with_callback(
-    partial_context: PartialContext, callback
+    partial_context: PartialMessageContext, callback
 ) -> list[str]:
     getter_result = await callback(partial_context)
 
@@ -127,7 +127,7 @@ class Bot(hikari.GatewayBot):
 
     Parameters
     ----------
-    default_prefix : Union[:obj:`str`, Iterable[:obj:`str`], Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, Union[:obj:`str`, Iterable[:obj:`str`]]]]
+    default_prefix : Union[:obj:`str`, Iterable[:obj:`str`], Callable[[:obj:`~PartialMessageContext`], Coroutine[:obj:`None`, :obj:`None`, Union[:obj:`str`, Iterable[:obj:`str`]]]]
         The bot's command prefix.
     mention_prefix : :obj:`bool`
         Whether or not the bot's mention will be used as a prefix. This will be `True` if no default
@@ -135,16 +135,16 @@ class Bot(hikari.GatewayBot):
 
     Other Parameters
     ----------------
-    default_parser : Union[:obj:`str`, Callable[[:obj:`~Context`], Coroutine[:obj:`None`, :obj:`None`, :obj:`str`]]]
+    default_parser : Union[:obj:`str`, Callable[[:obj:`~MessageContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`str`]]]
         The default parser to use for parsing message content for command arguments. Defaults to a whitespace.
         (Note that regardless of this parser, commands and subcommands should always be seperated
         by a whitespace, as this option only affects argument parsing.)
-    case_insensitive_commands : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
+    case_insensitive_commands : Union[:obj:`bool`, Callable[[:obj:`~PartialMessageContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Whether or not commands should be case-insensitive or not. Defaults to `False` (commands are case-sensitive).
-    case_insensitive_prefixes : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
+    case_insensitive_prefixes : Union[:obj:`bool`, Callable[[:obj:`~PartialMessageContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Whether or not prefixes should be handled as case-insensitive or not.
         Defaults to `False` (prefixes are case-sensitive).
-    ignore_bots : Union[:obj:`bool`, Callable[[:obj:`~PartialContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
+    ignore_bots : Union[:obj:`bool`, Callable[[:obj:`~PartialMessageContext`], Coroutine[:obj:`None`, :obj:`None`, :obj:`bool`]]]
         Prevents other bot's messages invoking your bot's commands if `True`. Defaults to `True`.
     owners : Iterable[`int`]
         The IDs or User objects of the users which should be treated as "owners" of the bot.
@@ -178,21 +178,21 @@ class Bot(hikari.GatewayBot):
             str,
             t.Iterable[str],
             t.Callable[
-                [PartialContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]
+                [PartialMessageContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]
             ],
         ] = None,
         mention_prefix: bool = None,  # so the default can be different depending on whether a prefix was passed
         default_parser: t.Union[
-            str, t.Callable[[Context], t.Coroutine[None, None, str]]
+            str, t.Callable[[MessageContext], t.Coroutine[None, None, str]]
         ] = " ",
         case_insensitive_commands: t.Union[
-            bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
+            bool, t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]
         ] = False,
         case_insensitive_prefixes: t.Union[
-            bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
+            bool, t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]
         ] = False,
         ignore_bots: t.Union[
-            bool, t.Callable[[PartialContext], t.Coroutine[None, None, bool]]
+            bool, t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]
         ] = True,
         owners: t.Iterable[int] = (),
         default_embed_colour: t.Optional[hikari.Colorish] = Colour.EMBED_BACKGROUND,
@@ -300,13 +300,13 @@ class Bot(hikari.GatewayBot):
     @property
     def prefix_getter(
         self,
-    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, t.Iterable[str]]]:
+    ) -> t.Callable[[PartialMessageContext], t.Coroutine[None, None, t.Iterable[str]]]:
         """
         A getter that returns the prefixes used when checking for prefixes in message content.
 
         Returns
         -------
-        Callable[[:obj:`PartialContext`], Coroutine[`None`, `None`, Iterable[`str`]]]
+        Callable[[:obj:`PartialMessageContext`], Coroutine[`None`, `None`, Iterable[`str`]]]
             The prefix getter.
         """
         return self._prefix_getter
@@ -326,14 +326,14 @@ class Bot(hikari.GatewayBot):
     @property
     def default_parser_getter(
         self,
-    ) -> t.Callable[[Context], t.Coroutine[None, None, str]]:
+    ) -> t.Callable[[MessageContext], t.Coroutine[None, None, str]]:
         """
         A getter that returns the default parser
         to use when parsing for args, overwritten by individual module and command parsers.
 
         Returns
         -------
-        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+        Callable[[:obj:`MessageContext`], Coroutine[`None`, `None`, `bool`]]
             The parser getter.
         """
         return self._default_parser_getter
@@ -341,13 +341,13 @@ class Bot(hikari.GatewayBot):
     @property
     def case_insensitive_commands_getter(
         self,
-    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+    ) -> t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]:
         """
         A getter that determines whether or not commands are case insensitive.
 
         Returns
         -------
-        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+        Callable[[:obj:`PartialMessageContext`], Coroutine[`None`, `None`, `bool`]]
             The case insensitive commands getter.
         """
         return self._case_insensitive_commands
@@ -355,13 +355,13 @@ class Bot(hikari.GatewayBot):
     @property
     def case_insensitive_prefixes_getter(
         self,
-    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+    ) -> t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]:
         """
         A getter that determines whether or not prefixes are case insensitive.
 
         Returns
         -------
-        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+        Callable[[:obj:`PartialMessageContext`], Coroutine[`None`, `None`, `bool`]]
             The case insensitive prefixes getter.
         """
         return self._case_insensitive_prefixes
@@ -369,13 +369,13 @@ class Bot(hikari.GatewayBot):
     @property
     def ignore_bots_getter(
         self,
-    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+    ) -> t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]:
         """
         A getter that determines whether or not the bot should invoke commands when a bot sent the message.
 
         Returns
         -------
-        Callable[[:obj:`Context`], Coroutine[`None`, `None`, `bool`]]
+        Callable[[:obj:`PartialMessageContext`], Coroutine[`None`, `None`, `bool`]]
             The ignore bots getter.
         """
         return self._ignore_bots
@@ -395,7 +395,7 @@ class Bot(hikari.GatewayBot):
     @property
     def default_embed_colour(self) -> t.Optional[hikari.Colorish]:
         """
-        The default embed colour used when using :obj:`Context.respond`.
+        The default embed colour used when using :obj:`MessageContext.respond`.
 
         Returns
         -------

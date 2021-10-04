@@ -24,7 +24,7 @@ import typing as t
 from abc import ABC, abstractmethod
 
 if t.TYPE_CHECKING:
-    from kousen.context import Context
+    from kousen.context import MessageContext
 
 __all__: list[str] = []
 
@@ -33,12 +33,12 @@ class AbstractCheck(ABC):
     __slots__ = ()
 
     @abstractmethod
-    def check(self, context: Context) -> bool:
+    def check(self, context: MessageContext) -> bool:
         """check
 
         Parameters
         ----------
-        context : :obj:`~Context`
+        context : :obj:`~MessageContext`
             The context to check against.
 
         Returns
@@ -53,12 +53,12 @@ class AbstractCheck(ABC):
         """
 
     @abstractmethod
-    def check_without_error(self, context: Context) -> bool:
+    def check_without_error(self, context: MessageContext) -> bool:
         """check
 
         Parameters
         ----------
-        context : :obj:`~Context`
+        context : :obj:`~MessageContext`
             The context to check against.
 
         Returns
