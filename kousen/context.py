@@ -20,21 +20,31 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 from __future__ import annotations
-import datetime
 import functools
 import typing as t
 import hikari
 
 if t.TYPE_CHECKING:
+    import datetime
     from kousen.handler import Bot
-    from kousen.commands import Command
+    from kousen.commands import MessageCommand
     from kousen.modules import Module
 
 __all__: list[str] = ["PartialMessageContext", "MessageContext"]
 
 
 class PartialMessageContext:
-    """Partial context"""
+    """
+    The initial context of a message before any command has been parsed for or invoked. Mostly used for getters that
+    are needed for parsing message content, such as the prefix.
+
+    Parameters
+    ----------
+    bot : :obj:~.handler.Bot`
+        The instance of the bot.
+    message : :obj:`hikari.Message`
+        The message object in which the partial context relates to.
+    """
 
     __slots__ = ("_bot", "_message")
 
@@ -53,7 +63,7 @@ class PartialMessageContext:
 
         Returns
         -------
-        :obj:`Bot`
+        :obj:`~.handler.Bot`
             The bot instance.
         """
         return self._bot
@@ -65,16 +75,32 @@ class PartialMessageContext:
 
         Returns
         -------
-        `hikari.api.Cache`
+        :obj:`hikari.api.Cache`
             The cache instance."""
         return self._bot.cache
 
     @property
     def rest(self) -> hikari.api.RESTClient:
+        """
+        The hikari REST client that the bot was initialised with.
+
+        Returns
+        -------
+        :obj:`~hikari.api.RESTClient`
+            The Hikari REST client..
+        """
         return self._bot.rest
 
     @property
     def shard(self) -> t.Optional[hikari.api.GatewayShard]:
+        """
+        The shard of the guild/DM that the message command was invoked in.
+
+        Returns
+        -------
+        Optional[:obj:`hikari.api.GatewayShard`]
+            The GatewayShard object.
+        """
         if not self._bot.shards:
             return None
 
@@ -89,18 +115,51 @@ class PartialMessageContext:
 
     @property
     def message(self) -> hikari.Message:
+        """
+        The message object that the context relates to.
+
+        Returns
+        -------
+        :obj:`hikari.Message`
+            The message object.
+        """
         return self._message
 
     @property
     def author(self) -> hikari.User:
+        """
+        The author of the message that invoked the command.
+
+        Returns
+        -------
+        :obj:`hikari.User`
+            The user object of the message author.
+        """
         return self._message.author
 
     @property
     def member(self) -> t.Optional[hikari.Member]:
+        """
+        The guild member of the message's author'. This will be None if the message command was invoked in a DM.
+
+        Returns
+        -------
+        Optional[:obj:`hikari.Member`]
+            The member object of the author.
+        """
         return self._message.member
 
     @property
     def is_human(self) -> bool:
+        """
+        Whether or not the author of the invoking message is a human. This filters out bots, webhooks and system
+        accounts.
+
+        Returns
+        -------
+        :obj:`bool`
+            Whether or not the author is a human.
+        """
         return (
             not self._message.author.is_system
             and not self._message.author.is_bot
@@ -109,35 +168,155 @@ class PartialMessageContext:
 
     @property
     def created_at(self) -> datetime.datetime:
+        """
+        The time at which the invoking message was sent.
+
+        Returns
+        -------
+        :obj:`datetime.datetime`
+            A datetime object of when the message was sent.
+        """
         return self._message.created_at
 
     @property
     def channel_id(self) -> hikari.Snowflake:
+        """
+        The channel id of the channel that the invoking message was sent in.
+
+        Returns
+        -------
+        :obj:`hikari.Snowflake`
+            The channel id as a snowflake object.
+        """
         return self._message.channel_id
 
     @property
     def guild_id(self) -> t.Optional[hikari.Snowflake]:
+        """
+        The guild id of the guild that the invoking message was sent in. This will be None if sent in a DM.
+
+        Returns
+        -------
+        Optional[:obj:`hikari.Snowflake`]
+            The guild id as a snowflake object.
+        """
         return self._message.guild_id
 
     # todo raise not cached error?
-    def get_channel(self) -> t.Optional[hikari.PartialChannel]:
+    def get_channel(self) -> t.Optional[hikari.GuildChannel]:
+        """
+        Get the channel object that the message was sent in from the cache. This will be None if the cache is disabled,
+        the message was sent in a DM or because the channel was not found in the cache.
+
+        Note
+        ----
+        This method requires `hikari.config.CacheComponents.GUILD_CHANNELS` cache component enabled.
+
+        Returns
+        -------
+        Optional[:obj:`hikari.GuildChannel`]
+            An channel object the message was sent in.
+        """
         if self.channel_id is not None:
             return self._bot.cache.get_guild_channel(self.channel_id)
         return None
 
     def get_guild(self) -> t.Optional[hikari.Guild]:
+        """
+        Get the guild object that the message was sent in from the cache. This will be None if the cache is disabled,
+        the message was sent in a DM or because the guild was not found in the cache.
+
+        Note
+        ----
+        This method requires `hikari.config.CacheComponents.GUILDS` cache component enabled.
+
+        Returns
+        -------
+        Optional[:obj:`hikari.Guild`]
+            An guild object the message was sent in.
+        """
         if self.guild_id is not None:
             return self._bot.cache.get_guild(self.guild_id)
         return None
 
     # todo raise error instead of returning None?
     async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
+        """
+        Fetch the channel object that the message was sent in
+
+        Note
+        ----
+        This will perform an API call. Consider using :obj:`~.context.PartialContext.get_channel`
+        if you have the guilds cache component enabled.
+
+        Returns
+        -------
+        :obj:`hikari.PartialChannel`
+            The channel object the message was sent in.
+
+        Raises
+        ------
+        hikari.errors.UnauthorizedError
+            If you are unauthorized to make the request (invalid/missing token).
+        hikari.errors.ForbiddenError
+            If you are missing the `READ_MESSAGES` permission in the channel.
+        hikari.errors.NotFoundError
+            If the channel is not found.
+        hikari.errors.RateLimitTooLongError
+            Raised in the event that a rate limit occurs that is
+            longer than `max_rate_limit` when making a request.
+        hikari.errors.RateLimitedError
+            Usually, Hikari will handle and retry on hitting
+            rate-limits automatically. This includes most bucket-specific
+            rate-limits and global rate-limits. In some rare edge cases,
+            however, Discord implements other undocumented rules for
+            rate-limiting, such as limits per attribute. These cannot be
+            detected or handled normally by Hikari due to their undocumented
+            nature, and will trigger this exception if they occur.
+        hikari.errors.InternalServerError
+            If an internal error occurs on Discord while handling the request.
+        """
         try:
             return await self._bot.rest.fetch_channel(self.channel_id)
         except hikari.NotFoundError:
             return None
 
-    async def fetch_guild(self) -> t.Optional[hikari.Guild]:
+    async def fetch_guild(self) -> t.Optional[hikari.RESTGuild]:
+        """
+        Fetch the guild object that the message was sent in
+
+        Note
+        ----
+        This will perform an API call. Consider using :obj:`~.context.PartialContext.get_guild`
+        if you have the guild channels cache component enabled.
+
+        Returns
+        -------
+        :obj:`hikari.RESTGuild`
+            The guild object the message was sent in.
+
+        Raises
+        ------
+        hikari.errors.ForbiddenError
+            If you are not part of the guild.
+        hikari.errors.NotFoundError
+            If the guild is not found.
+        hikari.errors.UnauthorizedError
+            If you are unauthorized to make the request (invalid/missing token).
+        hikari.errors.RateLimitTooLongError
+            Raised in the event that a rate limit occurs that is
+            longer than `max_rate_limit` when making a request.
+        hikari.errors.RateLimitedError
+            Usually, Hikari will handle and retry on hitting
+            rate-limits automatically. This includes most bucket-specific
+            rate-limits and global rate-limits. In some rare edge cases,
+            however, Discord implements other undocumented rules for
+            rate-limiting, such as limits per attribute. These cannot be
+            detected or handled normally by Hikari due to their undocumented
+            nature, and will trigger this exception if they occur.
+        hikari.errors.InternalServerError
+            If an internal error occurs on Discord while handling the request.
+        """
         if self.guild_id is not None:
             try:
                 return await self._bot.rest.fetch_guild(self.guild_id)
@@ -175,11 +354,11 @@ class PartialMessageContext:
         ] = hikari.UNDEFINED,
     ) -> hikari.Message:
         """
-        An alias for `MessageContext.message.respond()``. See hikari's documentation for further details.
+        An alias for :obj:`hikari.Message.respond`. See hikari's documentation for further details.
 
         Notes
         ----
-        If no colour is passed inside any embeds passed then `Bot.default_embed_colour`
+        If no colour is passed inside any embeds passed then :obj:`~.handler.Bot.default_embed_colour`
         is set as the colour if available.
 
         """
@@ -215,7 +394,28 @@ class PartialMessageContext:
 
 
 class MessageContext(PartialMessageContext):
-    """Context"""
+    """
+    The context of an invoked message command with various useful properties. For further information on message
+    related properties see the hikari documentation.
+
+    Parameters
+    ----------
+    bot : :obj:~.handler.Bot`
+        The instance of the bot.
+    message : :obj:`hikari.Message`
+        The message object in which the context relates to.
+    prefix : :obj:`str`
+        The prefix used by the user to invoke the message command
+    parser : :obj:`str`
+        The parser used to split args in the message content, this will probably be a whitespace unless a specific
+        parser was set for such command/module.
+    invoked_with : :obj:`str`
+        The name of the command the user used to invoke the message command.
+    command : :obj:`~.commands.MessageCommand`
+        The object of the message command that was invoked by the user.
+    args : :obj:`str`
+        A string of the raw args passed by the user.
+    """
 
     __slots__ = ("_prefix", "_invoked_with", "_command", "_parser", "_args")
 
@@ -227,14 +427,14 @@ class MessageContext(PartialMessageContext):
         prefix: str,
         parser: str,
         invoked_with: str,
-        command: Command,
-        args,
+        command: MessageCommand,
+        args: t.Iterable[t.Any],
     ) -> None:
         super().__init__(bot=bot, message=message)
         self._prefix: str = prefix
         self._parser: str = parser
         self._invoked_with: str = invoked_with
-        self._command: Command = command
+        self._command: MessageCommand = command
         self._args: t.Iterable[t.Any] = args
 
     @property
@@ -250,7 +450,7 @@ class MessageContext(PartialMessageContext):
         return self._invoked_with
 
     @property
-    def command(self) -> Command:
+    def command(self) -> MessageCommand:
         return self._command
 
     @property
@@ -268,7 +468,7 @@ class MessageContext(PartialMessageContext):
         prefix: str,
         parser: str,
         invoked_with: str,
-        command: Command,
+        command: MessageCommand,
         args: tuple[str],
     ) -> "MessageContext":
         return cls(
