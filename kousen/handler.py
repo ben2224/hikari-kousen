@@ -178,7 +178,8 @@ class Bot(hikari.GatewayBot):
             str,
             t.Iterable[str],
             t.Callable[
-                [PartialMessageContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]
+                [PartialMessageContext],
+                t.Coroutine[None, None, t.Union[str, t.Iterable[str]]],
             ],
         ] = None,
         mention_prefix: bool = None,  # so the default can be different depending on whether a prefix was passed

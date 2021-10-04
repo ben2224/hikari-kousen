@@ -54,7 +54,9 @@ class Module:
         """Mapping of event type against its listeners."""
         self._names_to_tasks: dict[str, Task] = {}
         """Mapping of task name to task object."""
-        self._checks: list[t.Callable[[MessageContext], t.Coroutine[None, None, bool]]] = []
+        self._checks: list[
+            t.Callable[[MessageContext], t.Coroutine[None, None, bool]]
+        ] = []
         """List of local checks that are applied to all commands in the module."""
         self._parser: t.Optional[str] = None
         self._cooldowns = None  # todo implement cooldowns
