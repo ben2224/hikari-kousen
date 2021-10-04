@@ -48,7 +48,8 @@ class PartialContext:
 
     @property
     def bot(self) -> Bot:
-        """The bot instance.
+        """
+        The bot instance.
 
         Returns
         -------
@@ -59,7 +60,8 @@ class PartialContext:
 
     @property
     def cache(self) -> hikari.api.Cache:
-        """The hikari cache implementation initialised with the bot.
+        """
+        The hikari cache implementation initialised with the bot.
 
         Returns
         -------
@@ -173,25 +175,26 @@ class PartialContext:
         ] = hikari.UNDEFINED,
     ) -> hikari.Message:
         """
-        An alias for `context.message.respond()``
+        An alias for `context.message.respond()``. See hikari's documentation for further details.
 
         Notes
         ----
         If no colour is passed inside any embeds passed then `Bot.default_embed_colour`
-        is set as the colour if available. See hikari's documentation for further details.
+        is set as the colour if available.
 
         """
-        if isinstance(content, hikari.Embed):
-            if content.colour is None:
-                content.colour = self._bot.default_embed_colour
-        if isinstance(embed, hikari.Embed):
-            if embed.colour is None:
-                embed.colour = self._bot.default_embed_colour
-        if isinstance(embeds, t.Collection):
-            for emd in embeds:
-                if isinstance(emd, hikari.Embed):
-                    if emd.colour is None:
-                        emd.colour = self._bot.default_embed_colour
+        if embed_colour := self._bot._default_embed_colour:
+            if isinstance(content, hikari.Embed):
+                if content.colour is None:
+                    content.colour = embed_colour
+            if isinstance(embed, hikari.Embed):
+                if embed.colour is None:
+                    embed.colour = embed_colour
+            if isinstance(embeds, t.Collection):
+                for emd in embeds:
+                    if isinstance(emd, hikari.Embed):
+                        if emd.colour is None:
+                            emd.colour = embed_colour
 
         return await self._message.respond(
             content=content,

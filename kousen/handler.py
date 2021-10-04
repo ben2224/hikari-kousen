@@ -168,7 +168,7 @@ class Bot(hikari.GatewayBot):
         "_owners",
         "_custom_attributes",
         "_default_embed_colour",
-        "scheduler"
+        "scheduler",
     )
 
     def __init__(
@@ -298,7 +298,9 @@ class Bot(hikari.GatewayBot):
         return self._scheduler
 
     @property
-    def prefix_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, t.Iterable[str]]]:
+    def prefix_getter(
+        self,
+    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, t.Iterable[str]]]:
         """
         A getter that returns the prefixes used when checking for prefixes in message content.
 
@@ -312,7 +314,7 @@ class Bot(hikari.GatewayBot):
     @property
     def mention_prefixes(self) -> list[str]:
         """
-        The mention prefixes to use as additional prefixes, essentially the bot's ids mention.
+        The mention prefixes to use as additional prefixes, essentially the bot's mention and nickname mention.
 
         Returns
         -------
@@ -322,10 +324,12 @@ class Bot(hikari.GatewayBot):
         return self._mention_prefixes
 
     @property
-    def default_parser_getter(self) -> t.Callable[[Context], t.Coroutine[None, None, str]]:
+    def default_parser_getter(
+        self,
+    ) -> t.Callable[[Context], t.Coroutine[None, None, str]]:
         """
         A getter that returns the default parser
-        to use when parsing for args, overwritten by module and command individual parsers.
+        to use when parsing for args, overwritten by individual module and command parsers.
 
         Returns
         -------
@@ -335,7 +339,9 @@ class Bot(hikari.GatewayBot):
         return self._default_parser_getter
 
     @property
-    def case_insensitive_commands_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+    def case_insensitive_commands_getter(
+        self,
+    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
         """
         A getter that determines whether or not commands are case insensitive.
 
@@ -347,7 +353,9 @@ class Bot(hikari.GatewayBot):
         return self._case_insensitive_commands
 
     @property
-    def case_insensitive_prefixes_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+    def case_insensitive_prefixes_getter(
+        self,
+    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
         """
         A getter that determines whether or not prefixes are case insensitive.
 
@@ -359,7 +367,9 @@ class Bot(hikari.GatewayBot):
         return self._case_insensitive_prefixes
 
     @property
-    def ignore_bots_getter(self) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
+    def ignore_bots_getter(
+        self,
+    ) -> t.Callable[[PartialContext], t.Coroutine[None, None, bool]]:
         """
         A getter that determines whether or not the bot should invoke commands when a bot sent the message.
 
