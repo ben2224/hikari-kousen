@@ -19,3 +19,10 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+import inspect
+
+
+async def _await_if_async(callable_, *args, **kwargs):
+    if inspect.iscoroutinefunction(callable_):
+        return await callable_(*args, **kwargs)
+    return callable_(*args, **kwargs)
