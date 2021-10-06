@@ -23,13 +23,36 @@ from __future__ import annotations
 import typing as t
 from hikari.events import Event
 
+from kousen.hooks import Hooks
+
 if t.TYPE_CHECKING:
     from kousen.commands import MessageCommand
-    from kousen.events import _Events, Listener
     from kousen.tasks import Task
-    from kousen.context import MessageContext
 
-__all__: list[str] = ["Module", "ModuleExtender"]
+__all__: list[str] = ["create_listener", "Listener", "Module", "ModuleExtender"]
+
+
+def create_listener(event_type: Event, *, pass_bot: bool = False):
+    return lambda callback: Listener(event_type, callback, pass_bot=pass_bot)
+
+
+class Listener:
+
+    __slots__ = ("_event_type", "_callback", "_pass_bot")
+
+    def __init__(
+        self,
+        event_type: Event,
+        callback: t.Callable[..., t.Coroutine[None, None, t.Any]],
+        *,
+        pass_bot=False
+    ):
+        self._event_type = event_type
+        self._callback = callback
+        self._pass_bot = pass_bot
+
+    def __call__(self, *args, **kwargs):
+        await self._callback(*args, **kwargs)
 
 
 class Module:
@@ -39,10 +62,8 @@ class Module:
         "_names_to_message_commands",
         "_listeners",
         "_names_to_tasks",
-        "_checks",
-        "_parser",
+        "_hooks",
         "_cooldowns",
-        "_error_handler",
     )
 
     def __init__(self, *, name: str):
@@ -50,17 +71,12 @@ class Module:
         """The module's name."""
         self._names_to_message_commands: dict[str, MessageCommand] = {}
         """Mapping of message command name against message command object. Note that this does not include aliases."""
-        self._listeners: dict[t.Union[Event, _Events], list[Listener]] = {}
-        """Mapping of event type against its listeners."""
+        self._listeners: dict[Event, list[Listener]] = {}
+        """Mapping of hikari event type against its listener objects."""
         self._names_to_tasks: dict[str, Task] = {}
         """Mapping of task name to task object."""
-        self._checks: list[
-            t.Callable[[MessageContext], t.Coroutine[None, None, bool]]
-        ] = []
-        """List of local checks that are applied to all commands in the module."""
-        self._parser: t.Optional[str] = None
+        self._hooks: Hooks = Hooks()
         self._cooldowns = None  # todo implement cooldowns
-        self._error_handler = None  # todo
 
     def add_message_command(self):
         ...
@@ -80,12 +96,6 @@ class Module:
     def with_task(self):
         ...
 
-    async def set_parser(self):
-        ...
-
-    async def set_error_handler(self):
-        ...
-
     async def load_extender(self):
         # Allow both class and path?
         ...
@@ -94,14 +104,20 @@ class Module:
         # module level command, using a command in the module will trigger cooldown for all
         ...
 
+    async def set_parser(self):
+        # (add to command object)
+        ...
+
     async def add_command_cooldown(self):
-        # adds a separate/independent cooldown per command in the module
+        # adds a separate/independent cooldown per command in the module (add to command object)
         ...
 
     def add_check(self):
+        # (add to command object)
         ...
 
     def add_custom_check(self):
+        # (add to command object)
         ...
 
     def with_custom_check(self):
@@ -140,4 +156,24 @@ class ModuleExtender:
         ...
 
     def with_task(self):
+        ...
+
+    def set_parser(self):
+        # (add to command object)
+        ...
+
+    async def add_command_cooldown(self):
+        # adds a separate/independent cooldown per command in the module (add to command object)
+        ...
+
+    def add_check(self):
+        # (add to command object)
+        ...
+
+    def add_custom_check(self):
+        # (add to command object)
+        ...
+
+    def with_custom_check(self):
+        # Decorate a function to add it as a custom check to module (add to command object)
         ...

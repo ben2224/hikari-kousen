@@ -32,6 +32,7 @@ import hikari
 from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload
+from kousen.hooks import dispatch_hooks, Hooks
 
 if t.TYPE_CHECKING:
     from kousen.modules import Module
@@ -168,7 +169,10 @@ class Bot(hikari.GatewayBot):
         "_owners",
         "_custom_attributes",
         "_default_embed_colour",
-        "scheduler",
+        "_scheduler",
+        "_extensions",
+        "_names_to_modules"
+        "_hooks"
     )
 
     def __init__(
@@ -285,6 +289,7 @@ class Bot(hikari.GatewayBot):
         self._default_embed_colour = default_embed_colour
         self._extensions: list[str] = []
         self._names_to_modules: dict[str, Module] = {}
+        self._hooks: Hooks = Hooks()
 
     @property
     def scheduler(self) -> AsyncIOScheduler:
@@ -428,6 +433,18 @@ class Bot(hikari.GatewayBot):
             The bot's modules.
         """
         return self._names_to_modules.values()
+
+    @property
+    def hooks(self) -> Hooks:
+        """
+        The bot's hooks that have been set.
+
+        Returns
+        -------
+        :obj:`.hooks.Hooks`
+            The bot's hooks.
+        """
+        return self._hooks
 
     async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
