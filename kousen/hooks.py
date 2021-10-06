@@ -38,7 +38,14 @@ class _HookTypes(str, Enum):
     MODULE_REMOVED = "module_removed"
 
 
-def dispatch_hooks(hook_type: _HookTypes, bot_hooks: "Hooks", module_hooks: "Hooks", command_hooks: "Hooks", *args, **kwargs) -> None:
+async def dispatch_hooks(
+    hook_type: _HookTypes,
+    bot_hooks: "Hooks",
+    module_hooks: "Hooks",
+    command_hooks: "Hooks",
+    *args,
+    **kwargs,
+) -> None:
     """
     Method used to dispatch all the hooks for that hook type taking into account module/command local overwrites.
 
@@ -57,9 +64,9 @@ def dispatch_hooks(hook_type: _HookTypes, bot_hooks: "Hooks", module_hooks: "Hoo
     -------
     :obj:`None`
     """
-    if not command_hooks.dispatch(hook_type, *args, **kwargs):
-        if not module_hooks.dispatch(hook_type, *args, **kwargs):
-            bot_hooks.dispatch(hook_type, *args, **kwargs)
+    if not await command_hooks.dispatch(hook_type, *args, **kwargs):
+        if not await module_hooks.dispatch(hook_type, *args, **kwargs):
+            await bot_hooks.dispatch(hook_type, *args, **kwargs)
     return
 
 
@@ -70,7 +77,7 @@ class Hooks:
     def __init__(self):
         self._all_hooks: dict[_HookTypes, list[t.Callable]] = {}
 
-    def dispatch(self, hook_type: _HookTypes, *args, **kwargs) -> bool:
+    async def dispatch(self, hook_type: _HookTypes, *args, **kwargs) -> bool:
         """
         Method used to dispatch all the hook callables for that hook type.
 

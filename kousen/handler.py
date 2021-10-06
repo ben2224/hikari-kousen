@@ -171,8 +171,7 @@ class Bot(hikari.GatewayBot):
         "_default_embed_colour",
         "_scheduler",
         "_extensions",
-        "_names_to_modules"
-        "_hooks"
+        "_names_to_modules" "_hooks",
     )
 
     def __init__(
