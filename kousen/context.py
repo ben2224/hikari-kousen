@@ -28,7 +28,7 @@ if t.TYPE_CHECKING:
     import datetime
     from kousen.handler import Bot
     from kousen.commands import MessageCommand
-    from kousen.modules import Module
+    from kousen.components import Component
 
 __all__: list[str] = ["PartialMessageContext", "MessageContext"]
 
@@ -408,7 +408,7 @@ class MessageContext(PartialMessageContext):
         The prefix used by the user to invoke the message command
     parser : :obj:`str`
         The parser used to split args in the message content, this will probably be a whitespace unless a specific
-        parser was set for such command/module.
+        parser was set for such command/component.
     invoked_with : :obj:`str`
         The name of the command the user used to invoke the message command.
     command : :obj:`~.commands.MessageCommand`
@@ -454,8 +454,8 @@ class MessageContext(PartialMessageContext):
         return self._command
 
     @property
-    def module(self) -> Module:
-        return self._command.module
+    def component(self) -> Component:
+        return self._command.component
 
     @property
     def args(self) -> t.Iterable[t.Any]:

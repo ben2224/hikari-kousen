@@ -26,19 +26,19 @@ import typing as t
 from kousen.checks import *
 from kousen.colours import *
 from kousen.commands import *
+from kousen.components import *
 from kousen.context import *
 from kousen.errors import *
 from kousen.handler import *
-from kousen.modules import *
 from kousen.tasks import *
 
 __all__: t.Final[list[str]] = [
     *checks.__all__,
     *colours.__all__,
     *commands.__all__,
+    *components.__all__,
     *context.__all__,
     *errors.__all__,
     *handler.__all__,
-    *modules.__all__,
     *tasks.__all__,
 ]

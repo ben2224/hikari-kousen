@@ -29,7 +29,7 @@ if t.TYPE_CHECKING:
     from kousen.commands import MessageCommand
     from kousen.tasks import Task
 
-__all__: list[str] = ["create_listener", "Listener", "Module", "ModuleExtender"]
+__all__: list[str] = ["create_listener", "Listener", "Component", "ComponentExtender"]
 
 
 def create_listener(event_type: Event, *, pass_bot: bool = False):
@@ -55,7 +55,7 @@ class Listener:
         await self._callback(*args, **kwargs)
 
 
-class Module:
+class Component:
 
     __slots__ = (
         "_name",
@@ -101,7 +101,7 @@ class Module:
         ...
 
     async def add_cooldown(self):
-        # module level command, using a command in the module will trigger cooldown for all
+        # component level command, using a command in the component will trigger cooldown for all
         ...
 
     async def set_parser(self):
@@ -109,7 +109,7 @@ class Module:
         ...
 
     async def add_command_cooldown(self):
-        # adds a separate/independent cooldown per command in the module (add to command object)
+        # adds a separate/independent cooldown per command in the component (add to command object)
         ...
 
     def add_check(self):
@@ -121,14 +121,14 @@ class Module:
         ...
 
     def with_custom_check(self):
-        # Decorate a function to add it as a custom check to module
+        # Decorate a function to add it as a custom check to component
         ...
 
     def _parse_content_for_command(self):
         ...
 
 
-class ModuleExtender:
+class ComponentExtender:
 
     __slots__ = ("_message_commands", "_listeners", "_tasks")
 
@@ -163,7 +163,7 @@ class ModuleExtender:
         ...
 
     async def add_command_cooldown(self):
-        # adds a separate/independent cooldown per command in the module (add to command object)
+        # adds a separate/independent cooldown per command in the component (add to command object)
         ...
 
     def add_check(self):
@@ -175,5 +175,5 @@ class ModuleExtender:
         ...
 
     def with_custom_check(self):
-        # Decorate a function to add it as a custom check to module (add to command object)
+        # Decorate a function to add it as a custom check to component (add to command object)
         ...

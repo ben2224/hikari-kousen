@@ -33,6 +33,7 @@ class _HookTypes(str, Enum):
 
     PRE_INVOKE = "pre_invoke"
     POST_INVOKE = "post_invoke"
+    COMMAND_SUCCESS = "command_success"
 
     MODULE_ADDED = "module_added"
     MODULE_REMOVED = "module_removed"

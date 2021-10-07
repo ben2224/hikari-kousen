@@ -35,7 +35,7 @@ from kousen.errors import _MissingLoad, _MissingUnload
 from kousen.hooks import dispatch_hooks, Hooks
 
 if t.TYPE_CHECKING:
-    from kousen.modules import Module
+    from kousen.components import Component
 
 __all__: list[str] = ["Bot", "loader", "unloader"]
 
@@ -170,8 +170,8 @@ class Bot(hikari.GatewayBot):
         "_custom_attributes",
         "_default_embed_colour",
         "_scheduler",
-        "_extensions",
-        "_names_to_modules" "_hooks",
+        "_loaded_modules",
+        "_names_to_components" "_hooks",
     )
 
     def __init__(
@@ -286,8 +286,8 @@ class Bot(hikari.GatewayBot):
             self._scheduler = AsyncIOScheduler()
         self._custom_attributes: dict[str, t.Any] = {"ok": 4}
         self._default_embed_colour = default_embed_colour
-        self._extensions: list[str] = []
-        self._names_to_modules: dict[str, Module] = {}
+        self._loaded_modules: list[str] = []
+        self._names_to_components: dict[str, Component] = {}
         self._hooks: Hooks = Hooks()
 
     @property
@@ -334,7 +334,7 @@ class Bot(hikari.GatewayBot):
     ) -> t.Callable[[MessageContext], t.Coroutine[None, None, str]]:
         """
         A getter that returns the default parser
-        to use when parsing for args, overwritten by individual module and command parsers.
+        to use when parsing for args, overwritten by individual component and command parsers.
 
         Returns
         -------
@@ -410,28 +410,28 @@ class Bot(hikari.GatewayBot):
         return self._default_embed_colour
 
     @property
-    def extensions(self) -> list[str]:
+    def modules(self) -> list[str]:
         """
-        A list of the currently loaded extensions (path names).
-
-        Returns
-        -------
-        `list[str]`
-            The bot's extensions.
-        """
-        return self._extensions
-
-    @property
-    def modules(self) -> t.Iterable[Module]:
-        """
-        An iterable of the bot's modules.
+        A list of the currently loaded modules (path names).
 
         Returns
         -------
         `list[str]`
             The bot's modules.
         """
-        return self._names_to_modules.values()
+        return self._loaded_modules
+
+    @property
+    def components(self) -> t.Iterable[Component]:
+        """
+        An iterable of the bot's components.
+
+        Returns
+        -------
+        `list[str]`
+            The bot's components.
+        """
+        return self._names_to_components.values()
 
     @property
     def hooks(self) -> Hooks:
@@ -562,75 +562,75 @@ class Bot(hikari.GatewayBot):
         self._custom_attributes.pop(name)
         return self
 
-    def load_extensions(self, extension_path: str, *extension_paths: str):
+    def load_modules(self, module_path: str, *module_paths: str):
         """
-        Load an external extension file into the bot from its path, which can contain modules.
+        Load an external module file into the bot from its path, which can contain components.
 
         Parameters
         ----------
-        extension_path : `str`
+        module_path : `str`
             The name of the path to load from. The path must be in the format <directory>.<file> or <directory>/<file>.
-            (E.g. `"project.modules.admin"` or `"project/modules/admin"`.)
+            (E.g. `"project.components.admin"` or `"project/components/admin"`.)
             Note that any additional slashes or dots are stripped.
 
         Other Parameters
         ----------------
-        extension_paths : `str`
+        module_paths : `str`
             Addition paths to load from, they must follow the same rules as above.
 
         Examples
         --------
-        In order for this to work, the extension must have a function decorated with :obj:`loader` that takes
+        In order for this to work, the module must have a function decorated with :obj:`loader` that takes
         one positional argument of type :obj:`Bot`
 
         .. code-block:: python
             import kousen
 
-            admin_module = kousen.Module(...)
+            admin_component = kousen.Component(...)
 
             ...
 
             @kousen.loader
             def admin_loader(bot: kousen.Bot):
-                bot.add_module(admin_module)
+                bot.add_component(admin_component)
 
         Returns
         -------
         :obj:`Bot`
             The instance of the bot to allow for chained calls.
         """
-        all_extension_paths = list(extension_paths)
-        all_extension_paths.append(extension_path)
-        for _extension_path in all_extension_paths:
-            _extension_path.replace("/", ".").strip(".")
-            if _extension_path in self._extensions:
+        all_module_paths = list(module_paths)
+        all_module_paths.append(module_path)
+        for _module_path in all_module_paths:
+            _module_path.replace("/", ".").strip(".")
+            if _module_path in self._modules:
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to load because it was already loaded."
+                    f"The module {_module_path} failed to load because it was already loaded."
                 )
             try:
-                _extension = importlib.import_module(_extension_path)
-                for _, member in inspect.getmembers(_extension):
+                _module = importlib.import_module(_module_path)
+                for _, member in inspect.getmembers(_module):
                     if isinstance(member, _Loader):
                         member(self)
-                        self._extensions.append(_extension_path)
+                        self._modules.append(_module_path)
                         _LOGGER.info(
-                            f"Extension {_extension_path} was successfully loaded."
+                            f"module {_module_path} was successfully loaded."
                         )
                         break
                 else:
                     _LOGGER.error(
-                        f"The extension {_extension_path} failed to load because no loader function was found."
+                        f"The module {_module_path} failed to load because no loader function was found."
                     )
             except Exception as ex:
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to load.", exc_info=ex
+                    f"The module {_module_path} failed to load.", exc_info=ex
                 )
 
         return self
 
-    def unload_extensions(self, extension_path: str, *extension_paths: str):
+    def unload_modules(self, module_path: str, *module_paths: str):
         """
-        Unload an extension.
+        Unload an module.
 
         Note
         ----
@@ -638,14 +638,14 @@ class Bot(hikari.GatewayBot):
 
         Parameters
         ----------
-        extension_path : `str`
+        module_path : `str`
             The name of the path to reload. The path must be in the format <directory>.<file> or <directory>/<file>.
-            (E.g. `"project.modules.admin"` or `"project/modules/admin"`.)
+            (E.g. `"project.components.admin"` or `"project/components/admin"`.)
             Note that any additional slashes or dots are stripped.
 
         Other Parameters
         ----------------
-        extension_paths : `str`
+        module_paths : `str`
             Addition paths to reload, they must follow the same rules as above.
 
         Returns
@@ -653,39 +653,39 @@ class Bot(hikari.GatewayBot):
         :obj:`Bot`
             The instance of the bot to allow for chained calls.
         """
-        all_extension_paths = list(extension_paths)
-        all_extension_paths.append(extension_path)
-        for _extension_path in all_extension_paths:
-            _extension_path.replace("/", ".").strip(".")
-            if _extension_path not in self._extensions:
+        all_module_paths = list(module_paths)
+        all_module_paths.append(module_path)
+        for _module_path in all_module_paths:
+            _module_path.replace("/", ".").strip(".")
+            if _module_path not in self._modules:
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to unload because it was not loaded."
+                    f"The module {_module_path} failed to unload because it was not loaded."
                 )
             try:
-                _extension = importlib.import_module(_extension_path)
-                for _, member in inspect.getmembers(_extension):
+                _module = importlib.import_module(_module_path)
+                for _, member in inspect.getmembers(_module):
                     if isinstance(member, _UnLoader):
                         member(self)
-                        self._extensions.remove(_extension_path)
-                        sys.modules.pop(_extension_path)
+                        self._modules.remove(_module_path)
+                        sys.modules.pop(_module_path)
                         _LOGGER.info(
-                            f"Extension {_extension_path} was successfully unloaded."
+                            f"module {_module_path} was successfully unloaded."
                         )
                         break
                 else:
                     _LOGGER.error(
-                        f"The extension {_extension_path} failed to unload because no unloader function was found."
+                        f"The module {_module_path} failed to unload because no unloader function was found."
                     )
             except Exception as ex:
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to unload.", exc_info=ex
+                    f"The module {_module_path} failed to unload.", exc_info=ex
                 )
 
         return self
 
-    def reload_extensions(self, extension_path: str, *extension_paths: str):
+    def reload_modules(self, module_path: str, *module_paths: str):
         """
-        Reload an extension (unload then reload), will revert to the previously loaded extension if an error occurs.
+        Reload an module (unload then reload), will revert to the previously loaded module if an error occurs.
 
         Note
         ----
@@ -693,14 +693,14 @@ class Bot(hikari.GatewayBot):
 
         Parameters
         ----------
-        extension_path : `str`
+        module_path : `str`
             The name of the path to unload. The path must be in the format <directory>.<file> or <directory>/<file>.
-            (E.g. `"project.modules.admin"` or `"project/modules/admin"`.)
+            (E.g. `"project.components.admin"` or `"project/components/admin"`.)
             Note that any additional slashes or dots are stripped.
 
         Other Parameters
         ----------------
-        extension_paths : `str`
+        module_paths : `str`
             Addition paths to unload, they must follow the same rules as above.
 
         Returns
@@ -708,20 +708,20 @@ class Bot(hikari.GatewayBot):
         :obj:`Bot`
             The instance of the bot to allow for chained calls.
         """
-        all_extension_paths = list(extension_paths)
-        all_extension_paths.append(extension_path)
+        all_module_paths = list(module_paths)
+        all_module_paths.append(module_path)
 
-        for _extension_path in all_extension_paths:
-            if _extension_path not in self._extensions:
+        for _module_path in all_module_paths:
+            if _module_path not in self._modules:
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to reload because it was not loaded."
+                    f"The module {_module_path} failed to reload because it was not loaded."
                 )
-            old_extension = sys.modules.pop(_extension_path)
+            old_module = sys.modules.pop(_module_path)
             try:
-                extension = importlib.import_module(_extension_path)
+                module = importlib.import_module(_module_path)
                 _unloader = None
                 _loader = None
-                for _, member in inspect.getmembers(extension):
+                for _, member in inspect.getmembers(module):
                     if isinstance(member, _UnLoader):
                         _unloader = member
                     if isinstance(member, _Loader):
@@ -736,25 +736,25 @@ class Bot(hikari.GatewayBot):
                 _loader(self)
 
             except _MissingUnload:
-                sys.modules[_extension_path] = old_extension
+                sys.modules[_module_path] = old_module
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to reload because no unloader function was found."
+                    f"The module {_module_path} failed to reload because no unloader function was found."
                 )
             except _MissingLoad:
-                sys.modules[_extension_path] = old_extension
+                sys.modules[_module_path] = old_module
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to reload because no loader function was found."
+                    f"The module {_module_path} failed to reload because no loader function was found."
                 )
             except Exception as ex:
-                sys.modules[_extension_path] = old_extension
+                sys.modules[_module_path] = old_module
                 _LOGGER.error(
-                    f"The extension {_extension_path} failed to reload.", exc_info=ex
+                    f"The module {_module_path} failed to reload.", exc_info=ex
                 )
 
         return self
 
-    def add_module(self):
+    def add_component(self):
         ...
 
-    def remove_module(self):
+    def remove_component(self):
         ...
