@@ -30,6 +30,7 @@ from kousen.components import *
 from kousen.context import *
 from kousen.errors import *
 from kousen.handler import *
+from kousen.hooks import *
 from kousen.tasks import *
 
 __all__: t.Final[list[str]] = [
@@ -39,6 +40,7 @@ __all__: t.Final[list[str]] = [
     *components.__all__,
     *context.__all__,
     *errors.__all__,
+    *handler.__all__,
     *handler.__all__,
     *tasks.__all__,
 ]
