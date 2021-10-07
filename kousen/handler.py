@@ -32,7 +32,7 @@ import hikari
 from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload
-from kousen.hooks import dispatch_hooks, Hooks
+from kousen.hooks import dispatch_hooks, BotHooks
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
@@ -171,7 +171,8 @@ class Bot(hikari.GatewayBot):
         "_default_embed_colour",
         "_scheduler",
         "_loaded_modules",
-        "_names_to_components" "_hooks",
+        "_names_to_components",
+        "_hooks",
     )
 
     def __init__(
@@ -288,7 +289,7 @@ class Bot(hikari.GatewayBot):
         self._default_embed_colour = default_embed_colour
         self._loaded_modules: list[str] = []
         self._names_to_components: dict[str, Component] = {}
-        self._hooks: Hooks = Hooks()
+        self._hooks: BotHooks = BotHooks()
 
     @property
     def scheduler(self) -> AsyncIOScheduler:
@@ -434,13 +435,13 @@ class Bot(hikari.GatewayBot):
         return self._names_to_components.values()
 
     @property
-    def hooks(self) -> Hooks:
+    def hooks(self) -> BotHooks:
         """
         The bot's hooks that have been set.
 
         Returns
         -------
-        :obj:`.hooks.Hooks`
+        :obj:`.hooks.BotHooks`
             The bot's hooks.
         """
         return self._hooks
@@ -613,18 +614,14 @@ class Bot(hikari.GatewayBot):
                     if isinstance(member, _Loader):
                         member(self)
                         self._modules.append(_module_path)
-                        _LOGGER.info(
-                            f"module {_module_path} was successfully loaded."
-                        )
+                        _LOGGER.info(f"module {_module_path} was successfully loaded.")
                         break
                 else:
                     _LOGGER.error(
                         f"The module {_module_path} failed to load because no loader function was found."
                     )
             except Exception as ex:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to load.", exc_info=ex
-                )
+                _LOGGER.error(f"The module {_module_path} failed to load.", exc_info=ex)
 
         return self
 

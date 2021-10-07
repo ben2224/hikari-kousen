@@ -24,7 +24,7 @@ from hikari.internal.enums import Enum
 
 from kousen.utils import _await_if_async
 
-__all__: list[str] = ["dispatch_hooks", "Hooks"]
+__all__: list[str] = ["Hooks", "CommandHooks", "ModuleHooks", "BotHooks"]
 
 
 class _HookTypes(str, Enum):
@@ -41,10 +41,9 @@ class _HookTypes(str, Enum):
 
 async def dispatch_hooks(
     hook_type: _HookTypes,
-    bot_hooks: "Hooks",
-    module_hooks: "Hooks",
-    command_hooks: "Hooks",
-    *args,
+    bot_hooks: "BotHooks",
+    module_hooks: "ModuleHooks",
+    command_hooks: t.Optional["CommandHooks"] = None,
     **kwargs,
 ) -> None:
     """
@@ -58,16 +57,23 @@ async def dispatch_hooks(
         The bot's hooks.
     module_hooks : :obj:`.hooks._Hooks`
         The module's hooks which overwrites the bot's hooks.
-    command_hooks : :obj:`.hooks._Hooks`
-        The command's hooks which overwrites both the bot's and module's hooks.
+    command_hooks : Optional[:obj:`.hooks._Hooks`]
+        The command's hooks which overwrites both the bot's and module's hooks. (Not relevant for non-command related
+        hooks)
+    **kwargs : dict[`str`, `Any`]
+        The args to be passed into the hook callback, e.g. error= or context=
 
     Returns
     -------
     :obj:`None`
     """
-    if not await command_hooks.dispatch(hook_type, *args, **kwargs):
-        if not await module_hooks.dispatch(hook_type, *args, **kwargs):
-            await bot_hooks.dispatch(hook_type, *args, **kwargs)
+    if command_hooks:
+        if not await command_hooks.dispatch(hook_type, **kwargs):
+            if not await module_hooks.dispatch(hook_type, **kwargs):
+                await bot_hooks.dispatch(hook_type, **kwargs)
+    else:
+        if not await module_hooks.dispatch(hook_type, **kwargs):
+            await bot_hooks.dispatch(hook_type, **kwargs)
     return
 
 
@@ -78,7 +84,7 @@ class Hooks:
     def __init__(self):
         self._all_hooks: dict[_HookTypes, list[t.Callable]] = {}
 
-    async def dispatch(self, hook_type: _HookTypes, *args, **kwargs) -> bool:
+    async def dispatch(self, hook_type: _HookTypes, **kwargs) -> bool:
         """
         Method used to dispatch all the hook callables for that hook type.
 
@@ -94,7 +100,8 @@ class Hooks:
         """
         if hook_callables := self._all_hooks.get(hook_type):
             for callable_ in hook_callables:
-                await _await_if_async(callable_, *args, **kwargs)
+                await _await_if_async(callable_, **kwargs)
+                # todo turn dict into values iterable then pass unpacked *(kwargs.values)
             return True
         return False
 
@@ -142,6 +149,11 @@ class Hooks:
         # context
         ...
 
+
+CommandHooks = Hooks
+
+
+class ModuleHooks(Hooks):
     def on_module_added(self):
         # module + bot
         ...
@@ -157,3 +169,6 @@ class Hooks:
     def add_on_module_removed(self):
         # module + bot
         ...
+
+
+BotHooks = ModuleHooks

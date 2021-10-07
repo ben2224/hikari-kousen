@@ -23,7 +23,7 @@ from __future__ import annotations
 import typing as t
 from hikari.events import Event
 
-from kousen.hooks import Hooks
+from kousen.hooks import ModuleHooks
 
 if t.TYPE_CHECKING:
     from kousen.commands import MessageCommand
@@ -75,7 +75,7 @@ class Component:
         """Mapping of hikari event type against its listener objects."""
         self._names_to_tasks: dict[str, Task] = {}
         """Mapping of task name to task object."""
-        self._hooks: Hooks = Hooks()
+        self._hooks: ModuleHooks = ModuleHooks()
         self._cooldowns = None  # todo implement cooldowns
 
     def add_message_command(self):
