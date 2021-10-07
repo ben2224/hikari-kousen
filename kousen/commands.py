@@ -104,7 +104,7 @@ class MessageCommand:
         self._parent = parent
         return self
 
-    def set_parser(self, parser: str) -> MessageCommand:
+    def set_parser(self, parser: str) -> MessageCommand:  # todo make getter
         self._custom_parser = parser
         return self
 

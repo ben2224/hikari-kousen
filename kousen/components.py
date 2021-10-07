@@ -23,11 +23,12 @@ from __future__ import annotations
 import typing as t
 from hikari.events import Event
 
-from kousen.hooks import ModuleHooks
+from kousen.hooks import ComponentHooks
 
 if t.TYPE_CHECKING:
     from kousen.commands import MessageCommand
     from kousen.tasks import Task
+    from kousen.handler import Bot
 
 __all__: list[str] = ["create_listener", "Listener", "Component", "ComponentExtender"]
 
@@ -64,6 +65,8 @@ class Component:
         "_names_to_tasks",
         "_hooks",
         "_cooldowns",
+        "_bot",
+        "_custom_parser"
     )
 
     def __init__(self, *, name: str):
@@ -75,8 +78,13 @@ class Component:
         """Mapping of hikari event type against its listener objects."""
         self._names_to_tasks: dict[str, Task] = {}
         """Mapping of task name to task object."""
-        self._hooks: ModuleHooks = ModuleHooks()
+        self._hooks: ComponentHooks = ComponentHooks()
         self._cooldowns = None  # todo implement cooldowns
+        self._bot: t.Optional[Bot] = None
+
+    def _set_bot(self, bot: t.Optional[Bot]) -> Component:
+        self._bot = bot
+        return self
 
     def add_message_command(self):
         ...
@@ -104,9 +112,10 @@ class Component:
         # component level command, using a command in the component will trigger cooldown for all
         ...
 
-    async def set_parser(self):
-        # (add to command object)
-        ...
+    async def set_parser(self, parser: str):  # todo make a getter
+        for command in self._names_to_message_commands.values():
+            if command._custom_parser is not None:
+                command.set_parser(parser)
 
     async def add_command_cooldown(self):
         # adds a separate/independent cooldown per command in the component (add to command object)

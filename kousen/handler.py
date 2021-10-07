@@ -32,7 +32,7 @@ import hikari
 from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload
-from kousen.hooks import dispatch_hooks, BotHooks
+from kousen.hooks import dispatch_hooks, BotHooks, _HookTypes
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
@@ -750,11 +750,26 @@ class Bot(hikari.GatewayBot):
 
         return self
 
-    def add_component(self):
-        ...
+    def add_component(self, component: Component) -> Bot:
+        if component in self._names_to_components.values():
+            return self  # todo raise error
 
-    def remove_component(self):
-        ...
+        self._names_to_components[component._name] = component
+        component._set_bot(self)
+
+        await dispatch_hooks(_HookTypes.COMPONENT_ADDED, bot_hooks=self._hooks, component_hooks=component._hooks)
+
+        return self
+
+    def remove_component(self, component_name: str) -> Bot:
+        if component_name not in self._names_to_components:
+            return self  # todo raise error
+
+        component = self._names_to_components.pop(component_name)
+        await dispatch_hooks(_HookTypes.COMPONENT_ADDED, bot_hooks=self._hooks, component_hooks=component._hooks)
+        component._set_bot(None)
+
+        return self
 
     def find_command(self):
         ...
