@@ -766,7 +766,7 @@ class Bot(hikari.GatewayBot):
             return self  # todo raise error
 
         component = self._names_to_components.pop(component_name)
-        await dispatch_hooks(_HookTypes.COMPONENT_ADDED, bot_hooks=self._hooks, component_hooks=component._hooks)
+        await dispatch_hooks(_HookTypes.COMPONENT_REMOVED, bot_hooks=self._hooks, component_hooks=component._hooks)
         component._set_bot(None)
 
         return self
