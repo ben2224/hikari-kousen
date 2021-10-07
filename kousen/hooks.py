@@ -24,7 +24,7 @@ from hikari.internal.enums import Enum
 
 from kousen.utils import _await_if_async
 
-__all__: list[str] = ["Hooks", "CommandHooks", "ModuleHooks", "BotHooks"]
+__all__: list[str] = ["Hooks", "CommandHooks", "ComponentHooks", "BotHooks"]
 
 
 class _HookTypes(str, Enum):
@@ -35,19 +35,20 @@ class _HookTypes(str, Enum):
     POST_INVOKE = "post_invoke"
     COMMAND_SUCCESS = "command_success"
 
-    MODULE_ADDED = "module_added"
-    MODULE_REMOVED = "module_removed"
+    COMPONENT_ADDED = "component_added"
+    COMPONENT_REMOVED = "component_removed"
 
 
 async def dispatch_hooks(
     hook_type: _HookTypes,
+    *,
     bot_hooks: "BotHooks",
-    module_hooks: "ModuleHooks",
+    component_hooks: "ComponentHooks",
     command_hooks: t.Optional["CommandHooks"] = None,
     **kwargs,
 ) -> None:
     """
-    Method used to dispatch all the hooks for that hook type taking into account module/command local overwrites.
+    Method used to dispatch all the hooks for that hook type taking into account component/command local overwrites.
 
     Parameters
     ----------
@@ -55,10 +56,10 @@ async def dispatch_hooks(
         The hook type to dispatch.
     bot_hooks : :obj:`.hooks._Hooks`
         The bot's hooks.
-    module_hooks : :obj:`.hooks._Hooks`
-        The module's hooks which overwrites the bot's hooks.
+    component_hooks : :obj:`.hooks._Hooks`
+        The component's hooks which overwrites the bot's hooks.
     command_hooks : Optional[:obj:`.hooks._Hooks`]
-        The command's hooks which overwrites both the bot's and module's hooks. (Not relevant for non-command related
+        The command's hooks which overwrites both the bot's and component's hooks. (Not relevant for non-command related
         hooks)
     **kwargs : dict[`str`, `Any`]
         The args to be passed into the hook callback, e.g. error= or context=
@@ -69,10 +70,10 @@ async def dispatch_hooks(
     """
     if command_hooks:
         if not await command_hooks.dispatch(hook_type, **kwargs):
-            if not await module_hooks.dispatch(hook_type, **kwargs):
+            if not await component_hooks.dispatch(hook_type, **kwargs):
                 await bot_hooks.dispatch(hook_type, **kwargs)
     else:
-        if not await module_hooks.dispatch(hook_type, **kwargs):
+        if not await component_hooks.dispatch(hook_type, **kwargs):
             await bot_hooks.dispatch(hook_type, **kwargs)
     return
 
@@ -153,22 +154,22 @@ class Hooks:
 CommandHooks = Hooks
 
 
-class ModuleHooks(Hooks):
-    def on_module_added(self):
-        # module + bot
+class ComponentHooks(Hooks):
+    def on_component_added(self):
+        # component + bot
         ...
 
-    def add_on_module_added(self):
-        # module + bot
+    def add_on_component_added(self):
+        # component + bot
         ...
 
-    def on_module_removed(self):
-        # module + bot
+    def on_component_removed(self):
+        # component + bot
         ...
 
-    def add_on_module_removed(self):
-        # module + bot
+    def add_on_component_removed(self):
+        # component + bot
         ...
 
 
-BotHooks = ModuleHooks
+BotHooks = ComponentHooks
