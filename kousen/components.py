@@ -127,6 +127,9 @@ class Component:
     def _parse_content_for_command(self):
         ...
 
+    def get_command(self, name_or_alias):
+        ...
+
 
 class ComponentExtender:
 

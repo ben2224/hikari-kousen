@@ -755,3 +755,9 @@ class Bot(hikari.GatewayBot):
 
     def remove_component(self):
         ...
+
+    def find_command(self):
+        ...
+
+    def get_component(self):
+        ...
