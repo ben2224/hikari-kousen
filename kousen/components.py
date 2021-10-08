@@ -24,8 +24,10 @@ import typing as t
 from hikari.events import Event
 
 from kousen.hooks import ComponentHooks
+from kousen.context import MessageContext
 
 if t.TYPE_CHECKING:
+    from kousen.context import PartialMessageContext
     from kousen.commands import MessageCommand
     from kousen.tasks import Task
     from kousen.handler import Bot
@@ -46,7 +48,7 @@ class Listener:
         event_type: Event,
         callback: t.Callable[..., t.Coroutine[None, None, t.Any]],
         *,
-        pass_bot=False
+        pass_bot=False,
     ):
         self._event_type = event_type
         self._callback = callback
@@ -66,7 +68,7 @@ class Component:
         "_hooks",
         "_cooldowns",
         "_bot",
-        "_custom_parser"
+        "_custom_parser",
     )
 
     def __init__(self, *, name: str):
@@ -114,7 +116,7 @@ class Component:
 
     async def set_parser(self, parser: str):  # todo make a getter
         for command in self._names_to_message_commands.values():
-            if command._custom_parser is not None:
+            if command._parser is not None:
                 command.set_parser(parser)
 
     async def add_command_cooldown(self):
@@ -133,10 +135,22 @@ class Component:
         # Decorate a function to add it as a custom check to component
         ...
 
-    def _parse_content_for_command(self):
-        ...
+    async def _parse_content_for_command(
+        self, partial_context: PartialMessageContext, prefix: str, content: str
+    ) -> bool:
+        name = content.split(" ", maxsplit=1)[0]
+        if not (command := self.get_command(name)):
+            return False
 
-    def get_command(self, name_or_alias):
+        args, kwargs = command._parse_content_for_args(content)
+        context = MessageContext._create_from_partial_context(
+            partial_context, prefix, name, command, content
+        )
+
+        await command.invoke(context, args, kwargs)
+        return True
+
+    def get_command(self, name_or_alias: str) -> t.Optional[MessageCommand]:
         ...
 
 

@@ -41,12 +41,12 @@ class _HookTypes(str, Enum):
 
 async def dispatch_hooks(
     hook_type: _HookTypes,
-    *,
     bot_hooks: "BotHooks",
     component_hooks: "ComponentHooks",
+    *,
     command_hooks: t.Optional["CommandHooks"] = None,
     **kwargs,
-) -> None:
+) -> bool:
     """
     Method used to dispatch all the hooks for that hook type taking into account component/command local overwrites.
 
@@ -66,16 +66,23 @@ async def dispatch_hooks(
 
     Returns
     -------
-    :obj:`None`
+    :obj:`bool`
+        True if any hooks were dispatched, false if there were no set hooks.
     """
     if command_hooks:
-        if not await command_hooks.dispatch(hook_type, **kwargs):
-            if not await component_hooks.dispatch(hook_type, **kwargs):
-                await bot_hooks.dispatch(hook_type, **kwargs)
-    else:
-        if not await component_hooks.dispatch(hook_type, **kwargs):
-            await bot_hooks.dispatch(hook_type, **kwargs)
-    return
+        if await command_hooks.dispatch(hook_type, **kwargs):
+            return True
+        if await component_hooks.dispatch(hook_type, **kwargs):
+            return True
+        if await bot_hooks.dispatch(hook_type, **kwargs):
+            return True
+        return False
+
+    if await component_hooks.dispatch(hook_type, **kwargs):
+        return True
+    if await bot_hooks.dispatch(hook_type, **kwargs):
+        return True
+    return False
 
 
 class Hooks:

@@ -19,6 +19,10 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
+import typing as t
+
+if t.TYPE_CHECKING:
+    from kousen.context import MessageContext
 
 __all__: list[str] = ["KousenError", "CheckError"]
 
@@ -32,7 +36,20 @@ class KousenError(Exception):
 class CheckError(KousenError):
     """The base exception for all check errors."""
 
-    __slots__ = ()
+    __slots__ = ("context",)
+
+    def __init__(self, context: MessageContext) -> None:
+        self.context: MessageContext = context
+
+
+class CommandError(KousenError):
+    """The base exception for errors that occur inside a command."""
+
+    __slots__ = ("context", "raw_error")
+
+    def __init__(self, context: MessageContext, raw_error: Exception) -> None:
+        self.context: MessageContext = context
+        self.raw_error: Exception = raw_error
 
 
 class _MissingUnload(Exception):

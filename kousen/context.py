@@ -406,9 +406,6 @@ class MessageContext(PartialMessageContext):
         The message object in which the context relates to.
     prefix : :obj:`str`
         The prefix used by the user to invoke the message command
-    parser : :obj:`str`
-        The parser used to split args in the message content, this will probably be a whitespace unless a specific
-        parser was set for such command/component.
     invoked_with : :obj:`str`
         The name of the command the user used to invoke the message command.
     command : :obj:`~.commands.MessageCommand`
@@ -425,24 +422,23 @@ class MessageContext(PartialMessageContext):
         message: hikari.Message,
         *,
         prefix: str,
-        parser: str,
         invoked_with: str,
         command: MessageCommand,
-        args: t.Iterable[t.Any],
+        args: str,
     ) -> None:
         super().__init__(bot=bot, message=message)
         self._prefix: str = prefix
-        self._parser: str = parser
+        self._parser: t.Optional[str] = command._parser
         self._invoked_with: str = invoked_with
         self._command: MessageCommand = command
-        self._args: t.Iterable[t.Any] = args
+        self._args: str = args
 
     @property
     def prefix(self) -> str:
         return self._prefix
 
     @property
-    def parser(self) -> str:
+    def parser(self) -> t.Optional[str]:
         return self._parser
 
     @property
@@ -458,7 +454,7 @@ class MessageContext(PartialMessageContext):
         return self._command.component
 
     @property
-    def args(self) -> t.Iterable[t.Any]:
+    def args(self) -> str:
         return self._args
 
     @classmethod
@@ -466,16 +462,14 @@ class MessageContext(PartialMessageContext):
         cls,
         partial_context: PartialMessageContext,
         prefix: str,
-        parser: str,
         invoked_with: str,
         command: MessageCommand,
-        args: tuple[str],
+        args: str,
     ) -> "MessageContext":
         return cls(
             bot=partial_context._bot,
             message=partial_context._message,
             prefix=prefix,
-            parser=parser,
             invoked_with=invoked_with,
             command=command,
             args=args,

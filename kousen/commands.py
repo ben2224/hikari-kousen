@@ -22,12 +22,18 @@
 from __future__ import annotations
 import typing as t
 
-from kousen.hooks import CommandHooks
+from kousen.hooks import CommandHooks, dispatch_hooks, _HookTypes
+from kousen.errors import CheckError, CommandError
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
 
-__all__: list[str] = ["MessageCommand", "create_message_command", "MessageCommandGroup", "create_message_command_group"]
+__all__: list[str] = [
+    "MessageCommand",
+    "create_message_command",
+    "MessageCommandGroup",
+    "create_message_command_group",
+]
 
 
 def create_message_command():
@@ -39,14 +45,32 @@ def create_message_command_group():
 
 
 class MessageCommand:
-    __slots__ = ("_callback", "_name", "_aliases", "_parent", "_custom_parser", "_component", "_checks", "_hooks")
+    __slots__ = (
+        "_callback",
+        "_name",
+        "_aliases",
+        "_parent",
+        "_parser",
+        "_component",
+        "_checks",
+        "_hooks",
+    )
 
-    def __init__(self, *, callback, name: str, aliases: t.Optional[list[str]] = None, component: Component) -> None:
+    def __init__(
+        self,
+        *,
+        callback,
+        name: str,
+        aliases: t.Optional[list[str]] = None,
+        component: Component,
+    ) -> None:
         self._callback = callback
         self._name: str = name
-        self._aliases: list[str] = list(map(str, aliases))
+        self._aliases: list[str] = []
+        if aliases:
+            self._aliases.extend(list(*map(str, aliases)))
         self._parent: t.Optional[MessageCommandGroup] = None
-        self._custom_parser: t.Optional[str] = None
+        self._parser: t.Optional[str] = None
         self._component: Component = component
         self._checks: list = []
         self._hooks: CommandHooks = CommandHooks()
@@ -82,7 +106,7 @@ class MessageCommand:
 
     @property
     def parser(self) -> t.Optional[str]:
-        return self._custom_parser
+        return self._parser
 
     @property
     def checks(self):
@@ -105,21 +129,61 @@ class MessageCommand:
         return self
 
     def set_parser(self, parser: str) -> MessageCommand:  # todo make getter
-        self._custom_parser = parser
+        self._parser = parser
         return self
 
-    def parse_content_for_args(self, content: str):
+    def _parse_content_for_args(
+        self, content: str
+    ) -> tuple[tuple[t.Any], dict[str, t.Any]]:
         ...
 
-    def invoke(self):
-        ...
+    async def invoke(self, context, args, kwargs):
+        comp = self._component
+        # todo cooldowns
+        try:
+            ...
+            # todo run checks here
+        except CheckError as ex:
+            if await dispatch_hooks(
+                _HookTypes.CHECK_ERROR,
+                comp._bot._hooks,
+                comp._hooks,
+                command_hooks=self._hooks,
+                error=ex,
+            ):
+                return
+            else:
+                raise ex  # todo use logger error instead of raise
+        try:
+            await self._callback(context, *args, **kwargs)
+        except Exception as ex:
+            exp = CommandError(context, ex)
+            if await dispatch_hooks(
+                _HookTypes.ERROR,
+                comp._bot._hooks,
+                comp._hooks,
+                command_hooks=self._hooks,
+                error=exp,
+            ):
+                return
+            else:
+                raise exp  # todo use logger error instead of raise
 
 
 class MessageCommandGroup(MessageCommand):
     __slots__ = ("_names_to_commands",)
 
-    def __init__(self, *, callback, name: str, aliases: t.Optional[list[str]] = None, component: Component) -> None:
-        super().__init__(callback=callback, name=name, aliases=aliases, component=component)
+    def __init__(
+        self,
+        *,
+        callback,
+        name: str,
+        aliases: t.Optional[list[str]] = None,
+        component: Component,
+    ) -> None:
+        super().__init__(
+            callback=callback, name=name, aliases=aliases, component=component
+        )
         self._names_to_commands: dict[str, MessageCommand] = {}
 
     @property
@@ -128,7 +192,9 @@ class MessageCommandGroup(MessageCommand):
 
     def add_command(self, command: MessageCommand) -> MessageCommandGroup:
         if command.name in self._names_to_commands:
-            raise ValueError(f"Cannot add command {command.name} as there is already a sub-command by that name.")
+            raise ValueError(
+                f"Cannot add command {command.name} as there is already a sub-command by that name."
+            )
 
         self._names_to_commands[command.name] = command
         command.set_parent(self)

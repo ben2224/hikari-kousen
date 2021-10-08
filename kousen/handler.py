@@ -285,11 +285,12 @@ class Bot(hikari.GatewayBot):
             self._scheduler = scheduler
         else:
             self._scheduler = AsyncIOScheduler()
-        self._custom_attributes: dict[str, t.Any] = {"ok": 4}
+        self._custom_attributes: dict[str, t.Any] = {}
         self._default_embed_colour = default_embed_colour
         self._loaded_modules: list[str] = []
         self._names_to_components: dict[str, Component] = {}
         self._hooks: BotHooks = BotHooks()
+        self.subscribe(hikari.MessageCreateEvent, self.on_message_create)
 
     @property
     def scheduler(self) -> AsyncIOScheduler:
@@ -445,6 +446,41 @@ class Bot(hikari.GatewayBot):
             The bot's hooks.
         """
         return self._hooks
+
+    async def on_message_create(self, event: hikari.MessageCreateEvent):
+        if event.content is None:
+            return
+
+        partial_context = PartialMessageContext(self, event.message)
+
+        if await self._ignore_bots(partial_context) and not event.is_human:
+            return
+
+        prefix: str = ""
+        prefixes = await self._prefix_getter(partial_context)
+        prefixes.extend(self._mention_prefixes)
+        if not prefixes:
+            return
+        prefixes.sort(key=len, reverse=True)
+        content = event.content.lstrip()
+
+        if await self._case_insensitive_prefixes(partial_context):
+            for prefix_ in prefixes:
+                if content.lower().startswith(prefix_.lower()):
+                    prefix = prefix_
+        else:
+            for prefix_ in prefixes:
+                if content.startswith(prefix_):
+                    prefix = prefix_
+
+        if not (content := content[len(prefix) :].lstrip()):
+            return
+
+        for component in self._names_to_components.values():
+            if await component._parse_content_for_command(
+                partial_context, prefix, content
+            ):
+                return
 
     async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
@@ -750,23 +786,32 @@ class Bot(hikari.GatewayBot):
 
         return self
 
-    def add_component(self, component: Component) -> Bot:
+    async def add_component(self, component: Component) -> Bot:
         if component in self._names_to_components.values():
             return self  # todo raise error
 
         self._names_to_components[component._name] = component
         component._set_bot(self)
 
-        await dispatch_hooks(_HookTypes.COMPONENT_ADDED, bot_hooks=self._hooks, component_hooks=component._hooks)
+        await dispatch_hooks(
+            _HookTypes.COMPONENT_ADDED,
+            bot_hooks=self._hooks,
+            component_hooks=component._hooks,
+        )
 
         return self
 
-    def remove_component(self, component_name: str) -> Bot:
+    async def remove_component(self, component_name: str) -> Bot:
         if component_name not in self._names_to_components:
             return self  # todo raise error
 
         component = self._names_to_components.pop(component_name)
-        await dispatch_hooks(_HookTypes.COMPONENT_REMOVED, bot_hooks=self._hooks, component_hooks=component._hooks)
+        await dispatch_hooks(
+            _HookTypes.COMPONENT_ADDED,
+            bot_hooks=self._hooks,
+            component_hooks=component._hooks,
+        )
+        # todo use asyncio tasks to make not async func
         component._set_bot(None)
 
         return self
