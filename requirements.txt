@@ -1,2 +1,2 @@
-hikari==2.0.0.dev102
+hikari==2.0.0.dev103
 APScheduler~=3.8.0
