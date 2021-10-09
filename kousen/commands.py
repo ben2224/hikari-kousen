@@ -36,12 +36,32 @@ __all__: list[str] = [
 ]
 
 
-def create_message_command():
-    ...
+def create_message_command(name: str, *, aliases: t.Optional[t.Iterable[str]] = None, parser: t.Optional[str] = None):
+
+    def decorate(func):
+        cmd = MessageCommand(
+            callback=func,
+            name=name,
+            aliases=aliases,
+            parser=parser
+        )
+        return cmd
+
+    return decorate
 
 
-def create_message_command_group():
-    ...
+def create_message_command_group(name: str, *, aliases: t.Optional[t.Iterable[str]] = None, parser: t.Optional[str] = None):
+
+    def decorate(func):
+        cmd = MessageCommandGroup(
+            callback=func,
+            name=name,
+            aliases=aliases,
+            parser=parser
+        )
+        return cmd
+
+    return decorate
 
 
 class MessageCommand:
@@ -50,7 +70,8 @@ class MessageCommand:
         "_name",
         "_aliases",
         "_parent",
-        "_parser",
+        "_global_parser",
+        "_custom_parser",
         "_component",
         "_checks",
         "_hooks",
@@ -62,7 +83,7 @@ class MessageCommand:
         callback,
         name: str,
         aliases: t.Optional[list[str]] = None,
-        component: Component,
+        parser: t.Optional[str] = None,
     ) -> None:
         self._callback = callback
         self._name: str = name
@@ -70,10 +91,23 @@ class MessageCommand:
         if aliases:
             self._aliases.extend(list(*map(str, aliases)))
         self._parent: t.Optional[MessageCommandGroup] = None
-        self._parser: t.Optional[str] = None
-        self._component: Component = component
+        self._global_parser: t.Optional[str] = None
+        self._custom_parser: t.Optional[str] = parser
+        self._component: t.Optional[Component] = None
         self._checks: list = []
         self._hooks: CommandHooks = CommandHooks()
+
+    def _set_parent(self, parent: t.Optional[MessageCommandGroup]) -> MessageCommand:
+        self._parent = parent
+        return self
+
+    def _set_parser(self, parser: str) -> MessageCommand:  # todo make getter
+        self._global_parser = parser
+        return self
+
+    def _set_component(self, component: Component) -> MessageCommand:
+        self._component = component
+        return self
 
     @property
     def callback(self):
@@ -90,6 +124,7 @@ class MessageCommand:
         while cmd is not None:
             full_name.append(cmd._name)
             cmd = cmd._parent
+        full_name.reverse()
         return " ".join(full_name)
 
     @property
@@ -106,7 +141,7 @@ class MessageCommand:
 
     @property
     def parser(self) -> t.Optional[str]:
-        return self._parser
+        return self._custom_parser or self._global_parser
 
     @property
     def checks(self):
@@ -123,14 +158,6 @@ class MessageCommand:
     @property
     def component(self) -> Component:
         return self._component
-
-    def set_parent(self, parent: t.Optional[MessageCommandGroup]) -> MessageCommand:
-        self._parent = parent
-        return self
-
-    def set_parser(self, parser: str) -> MessageCommand:  # todo make getter
-        self._parser = parser
-        return self
 
     def _parse_content_for_args(
         self, content: str
@@ -179,12 +206,22 @@ class MessageCommandGroup(MessageCommand):
         callback,
         name: str,
         aliases: t.Optional[list[str]] = None,
-        component: Component,
+        parser: t.Optional[str] = None,
     ) -> None:
-        super().__init__(
-            callback=callback, name=name, aliases=aliases, component=component
-        )
+        super().__init__(callback=callback, name=name, aliases=aliases, parser=parser)
         self._names_to_commands: dict[str, MessageCommand] = {}
+
+    def _set_parser(self, parser: str) -> MessageCommand:  # todo make getter
+        self._global_parser = parser
+        for command in self._names_to_commands.values():
+            command._set_parser(parser)
+        return self
+
+    def _set_component(self, component: Component) -> MessageCommand:
+        self._component = component
+        for command in self._names_to_commands.values():
+            command._set_component(component)
+        return self
 
     @property
     def commands(self) -> list[MessageCommand]:
@@ -197,13 +234,11 @@ class MessageCommandGroup(MessageCommand):
             )
 
         self._names_to_commands[command.name] = command
-        command.set_parent(self)
+        command._set_parent(self)
+        command._set_component(self._component)
+        command._set_parser(self._custom_parser or self._global_parser)
         return self
 
-    def remove_command(self, command_name: str) -> MessageCommandGroup:
-        command = self._names_to_commands.pop(command_name)
-        command.set_parent(None)
-        return self
-
-    def with_command(self, command):
-        ...
+    def with_command(self, command: MessageCommand) -> MessageCommand:
+        self.add_command(command)
+        return command

@@ -25,10 +25,10 @@ from hikari.events import Event
 
 from kousen.hooks import ComponentHooks
 from kousen.context import MessageContext
+from kousen.commands import MessageCommand
 
 if t.TYPE_CHECKING:
     from kousen.context import PartialMessageContext
-    from kousen.commands import MessageCommand
     from kousen.tasks import Task
     from kousen.handler import Bot
 
@@ -69,9 +69,10 @@ class Component:
         "_cooldowns",
         "_bot",
         "_custom_parser",
+        "_global_parser"
     )
 
-    def __init__(self, *, name: str):
+    def __init__(self, *, name: str, parser: t.Optional[str] = None):
         self._name: str = name
         """The module's name."""
         self._names_to_message_commands: dict[str, MessageCommand] = {}
@@ -83,16 +84,33 @@ class Component:
         self._hooks: ComponentHooks = ComponentHooks()
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
+        self._custom_parser: t.Optional[str] = parser
+        self._global_parser: t.Optional[str] = None
 
     def _set_bot(self, bot: t.Optional[Bot]) -> Component:
         self._bot = bot
         return self
 
-    def add_message_command(self):
-        ...
+    def _set_parser(self, parser: str):  # todo make a getter
+        self._global_parser = parser
+        if not self._custom_parser:
+            for command in self._names_to_message_commands.values():
+                command._set_parser(parser)
 
-    def with_message_command(self):
-        ...
+    def add_message_command(self, command: MessageCommand) -> Component:
+        if command.name in self._names_to_message_commands:
+            raise ValueError(
+                f"Cannot add command {command.name} as there is already a command by that name."
+            )  # todo for things like this use logger not error
+
+        self._names_to_message_commands[command.name] = command
+        command._set_component(self)
+        command._set_parser(self._custom_parser or self._global_parser)
+        return self
+
+    def with_message_command(self, command: MessageCommand) -> MessageCommand:
+        self.add_message_command(command)
+        return command
 
     def add_listener(self):
         ...
@@ -113,11 +131,6 @@ class Component:
     async def add_cooldown(self):
         # component level command, using a command in the component will trigger cooldown for all
         ...
-
-    async def set_parser(self, parser: str):  # todo make a getter
-        for command in self._names_to_message_commands.values():
-            if command._parser is not None:
-                command.set_parser(parser)
 
     async def add_command_cooldown(self):
         # adds a separate/independent cooldown per command in the component (add to command object)
