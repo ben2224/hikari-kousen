@@ -21,6 +21,8 @@
 #  SOFTWARE.
 from __future__ import annotations
 import typing as t
+import functools
+import inspect
 from hikari.events import Event
 
 from kousen.hooks import ComponentHooks
@@ -30,7 +32,8 @@ from kousen.commands import MessageCommand
 if t.TYPE_CHECKING:
     from kousen.context import PartialMessageContext
     from kousen.tasks import Task
-    from kousen.handler import Bot
+    from kousen.handler import Bot, ParserGetterType, ParserArgType, _base_getter, _base_getter_with_callback
+    # todo can't import under type checking so move out of handler file
 
 __all__: list[str] = ["create_listener", "Listener", "Component", "ComponentExtender"]
 
@@ -58,6 +61,22 @@ class Listener:
         await self._callback(*args, **kwargs)
 
 
+def _convert_parser_to_getter(parser: ParserArgType) -> ParserGetterType:
+    if isinstance(parser, str):
+        return functools.partial(_base_getter, return_object=parser)
+
+    elif inspect.iscoroutinefunction(parser):
+        return functools.partial(
+            _base_getter_with_callback,
+            callback=parser,
+            result_type=[str],
+            error_text="The parser getter must return a string.")
+    else:
+        raise TypeError(
+            f"Parser must be either a string or a coroutine, not type {type(parser)}."
+        )
+
+
 class Component:
 
     __slots__ = (
@@ -72,7 +91,7 @@ class Component:
         "_global_parser"
     )
 
-    def __init__(self, *, name: str, parser: t.Optional[str] = None):
+    def __init__(self, *, name: str, parser: t.Optional[ParserArgType] = None):
         self._name: str = name
         """The module's name."""
         self._names_to_message_commands: dict[str, MessageCommand] = {}
@@ -84,14 +103,15 @@ class Component:
         self._hooks: ComponentHooks = ComponentHooks()
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
-        self._custom_parser: t.Optional[str] = parser
-        self._global_parser: t.Optional[str] = None
+        self._custom_parser: t.Optional[ParserGetterType] = _convert_parser_to_getter(parser) if parser else None
+        self._global_parser: t.Optional[ParserGetterType] = None
+        # todo fix type problem
 
     def _set_bot(self, bot: t.Optional[Bot]) -> Component:
         self._bot = bot
         return self
 
-    def _set_parser(self, parser: str):  # todo make a getter
+    def _set_parser(self, parser: ParserGetterType):  # todo make a getter
         self._global_parser = parser
         if not self._custom_parser:
             for command in self._names_to_message_commands.values():
