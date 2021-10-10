@@ -26,7 +26,7 @@ import hikari
 
 if t.TYPE_CHECKING:
     import datetime
-    from kousen.handler import Bot
+    from kousen.handler import Bot, ParserGetterType
     from kousen.commands import MessageCommand
     from kousen.components import Component
 
@@ -428,7 +428,9 @@ class MessageContext(PartialMessageContext):
     ) -> None:
         super().__init__(bot=bot, message=message)
         self._prefix: str = prefix
-        self._parser: t.Optional[str] = command._parser
+        self._parser: ParserGetterType = (
+            command._custom_parser or command._global_parser
+        )
         self._invoked_with: str = invoked_with
         self._command: MessageCommand = command
         self._args: str = args
@@ -438,7 +440,7 @@ class MessageContext(PartialMessageContext):
         return self._prefix
 
     @property
-    def parser(self) -> t.Optional[str]:
+    def parser(self) -> ParserGetterType:
         return self._parser
 
     @property

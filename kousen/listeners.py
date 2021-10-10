@@ -45,5 +45,5 @@ class Listener:
         self._callback = callback
         self._pass_bot = pass_bot
 
-    def __call__(self, *args, **kwargs):
+    async def __call__(self, *args, **kwargs):
         await self._callback(*args, **kwargs)

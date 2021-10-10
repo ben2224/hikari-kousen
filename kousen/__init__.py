@@ -19,9 +19,7 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-
 from __future__ import annotations
-import typing as t
 
 from kousen.checks import *
 from kousen.colours import *
@@ -33,16 +31,3 @@ from kousen.handler import *
 from kousen.hooks import *
 from kousen.listeners import *
 from kousen.tasks import *
-
-__all__: t.Final[list[str]] = [
-    *checks.__all__,
-    *colours.__all__,
-    *commands.__all__,
-    *components.__all__,
-    *context.__all__,
-    *errors.__all__,
-    *handler.__all__,
-    *hooks.__all__,
-    *listeners.__all__,
-    *tasks.__all__,
-]

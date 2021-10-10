@@ -48,7 +48,7 @@ class Component:
         "_cooldowns",
         "_bot",
         "_custom_parser",
-        "_global_parser"
+        "_global_parser",
     )
 
     def __init__(self, *, name: str, parser: t.Optional[ParserArgType] = None):
@@ -63,7 +63,9 @@ class Component:
         self._hooks: ComponentHooks = ComponentHooks()
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
-        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
+        self._custom_parser: t.Optional[ParserGetterType] = (
+            _parser_getter_maker(parser) if parser else None
+        )
         self._global_parser: t.Optional[ParserGetterType] = None
         # todo fix type problem
 
@@ -85,7 +87,10 @@ class Component:
 
         self._names_to_message_commands[command.name] = command
         command._set_component(self)
-        command._set_parser(self._custom_parser or self._global_parser)
+        if self._custom_parser:
+            command._set_parser(self._custom_parser)
+        elif self._global_parser:
+            command._set_parser(self._global_parser)
         return self
 
     def with_message_command(self, command: MessageCommand) -> MessageCommand:

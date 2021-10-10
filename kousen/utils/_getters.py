@@ -25,7 +25,14 @@ import functools
 import inspect
 
 if t.TYPE_CHECKING:
-    from kousen.handler import PrefixArgType, PrefixGetterType, BoolArgType, BoolGetterType, ParserArgType, ParserGetterType
+    from kousen.handler import (
+        PrefixArgType,
+        PrefixGetterType,
+        BoolArgType,
+        BoolGetterType,
+        ParserArgType,
+        ParserGetterType,
+    )
 
 
 async def _getter(_, return_obj):
@@ -42,19 +49,25 @@ async def _getter_with_callback(ctx, callback, type_):
             list1 = list(*map(str, getter_result))
             return list1
         else:
-            raise TypeError(f"Prefix getter must return a string or iterable of strings, not type {type(getter_result)}")  # todo use log error
+            raise TypeError(
+                f"Prefix getter must return a string or iterable of strings, not type {type(getter_result)}"
+            )  # todo use log error
 
     if type_ == "parser":
         if isinstance(getter_result, str):
             return getter_result
         else:
-            raise TypeError(f"Parser getter must return a string, not type {type(getter_result)}")
+            raise TypeError(
+                f"Parser getter must return a string, not type {type(getter_result)}"
+            )
 
     if type_ == "bool":
         if isinstance(getter_result, str):
             return getter_result
         else:
-            raise TypeError(f"Bool getter must return a bool, not type {type(getter_result)}")  # todo more specific
+            raise TypeError(
+                f"Bool getter must return a bool, not type {type(getter_result)}"
+            )  # todo more specific
 
 
 def _prefix_getter_maker(prefix: PrefixArgType) -> PrefixGetterType:
@@ -62,7 +75,7 @@ def _prefix_getter_maker(prefix: PrefixArgType) -> PrefixGetterType:
         return functools.partial(_getter, return_object=[prefix])
 
     elif isinstance(prefix, t.Iterable):
-        prefix_list = list(*map(str, prefix))
+        prefix_list: list[str] = list(*map(str, prefix))
         return functools.partial(_getter, return_object=prefix_list)
 
     elif inspect.iscoroutinefunction(prefix):

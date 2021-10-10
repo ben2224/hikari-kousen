@@ -38,28 +38,28 @@ __all__: list[str] = [
 ]
 
 
-def create_message_command(name: str, *, aliases: t.Optional[t.Iterable[str]] = None, parser: t.Optional[str] = None):
-
+def create_message_command(
+    name: str,
+    *,
+    aliases: t.Optional[t.Iterable[str]] = None,
+    parser: t.Optional[str] = None,
+):
     def decorate(func):
-        cmd = MessageCommand(
-            callback=func,
-            name=name,
-            aliases=aliases,
-            parser=parser
-        )
+        cmd = MessageCommand(callback=func, name=name, aliases=aliases, parser=parser)
         return cmd
 
     return decorate
 
 
-def create_message_command_group(name: str, *, aliases: t.Optional[t.Iterable[str]] = None, parser: t.Optional[str] = None):
-
+def create_message_command_group(
+    name: str,
+    *,
+    aliases: t.Optional[t.Iterable[str]] = None,
+    parser: t.Optional[str] = None,
+):
     def decorate(func):
         cmd = MessageCommandGroup(
-            callback=func,
-            name=name,
-            aliases=aliases,
-            parser=parser
+            callback=func, name=name, aliases=aliases, parser=parser
         )
         return cmd
 
@@ -93,7 +93,9 @@ class MessageCommand:
         if aliases:
             self._aliases.extend(list(*map(str, aliases)))
         self._parent: t.Optional[MessageCommandGroup] = None
-        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
+        self._custom_parser: t.Optional[ParserGetterType] = (
+            _parser_getter_maker(parser) if parser else None
+        )
         self._global_parser: t.Optional[ParserGetterType] = None
         self._component: t.Optional[Component] = None
         self._checks: list = []
@@ -142,7 +144,7 @@ class MessageCommand:
         return self._parent is not None
 
     @property
-    def parser(self) -> t.Optional[str]:
+    def parser(self) -> ParserGetterType:
         return self._custom_parser or self._global_parser
 
     @property
@@ -158,7 +160,7 @@ class MessageCommand:
         return None  # todo impl
 
     @property
-    def component(self) -> Component:
+    def component(self) -> t.Optional[Component]:
         return self._component
 
     def _parse_content_for_args(
@@ -237,8 +239,12 @@ class MessageCommandGroup(MessageCommand):
 
         self._names_to_commands[command.name] = command
         command._set_parent(self)
-        command._set_component(self._component)
-        command._set_parser(self._custom_parser or self._global_parser)
+        if self._component:
+            command._set_component(self._component)
+        if self._custom_parser:
+            command._set_parser(self._custom_parser)
+        elif self._global_parser:
+            command._set_parser(self._global_parser)
         return self
 
     def with_command(self, command: MessageCommand) -> MessageCommand:

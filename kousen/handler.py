@@ -32,7 +32,11 @@ from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload
 from kousen.hooks import dispatch_hooks, BotHooks, _HookTypes
-from kousen.utils._getters import _bool_getter_maker, _parser_getter_maker, _prefix_getter_maker
+from kousen.utils._getters import (
+    _bool_getter_maker,
+    _parser_getter_maker,
+    _prefix_getter_maker,
+)
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
@@ -41,11 +45,19 @@ __all__: list[str] = ["Bot", "loader", "unloader"]
 
 _LOGGER = logging.getLogger("kousen")
 
-PrefixGetterType = t.Callable[[PartialMessageContext], t.Coroutine[None, None, t.Iterable[str]]]
+PrefixGetterType = t.Callable[
+    [PartialMessageContext], t.Coroutine[None, None, list[str]]
+]
 ParserGetterType = t.Callable[[MessageContext], t.Coroutine[None, None, str]]
 BoolGetterType = t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]
 
-PrefixArgType = t.Union[str, t.Iterable[str], t.Callable[[PartialMessageContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]]]
+PrefixArgType = t.Union[
+    str,
+    t.Iterable[str],
+    t.Callable[
+        [PartialMessageContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]
+    ],
+]
 ParserArgType = t.Union[str, ParserGetterType]
 BoolArgType = t.Union[bool, BoolGetterType]
 
@@ -155,7 +167,7 @@ class Bot(hikari.GatewayBot):
                 "No default prefix was provided and mention_prefix was set to False."
             )
 
-        self._mention_prefixes = []
+        self._mention_prefixes: list[str] = []
         if mention_prefix is True or default_prefix is None:
             self.subscribe(hikari.StartedEvent, self._setup_mention_prefixes)
         if default_prefix is None:
@@ -165,10 +177,12 @@ class Bot(hikari.GatewayBot):
         self._default_parser_getter = _parser_getter_maker(default_parser)
         for component in self._names_to_components.values():
             component._set_parser(self._default_parser_getter)
-        self._case_insensitive_commands_getter = _bool_getter_maker(case_insensitive_commands,
-                                                                    name="Case insensitive commands")
-        self._case_insensitive_prefixes_getter = _bool_getter_maker(case_insensitive_prefixes,
-                                                                    name="Case insensitive prefixes")
+        self._case_insensitive_commands_getter = _bool_getter_maker(
+            case_insensitive_commands, name="Case insensitive commands"
+        )
+        self._case_insensitive_prefixes_getter = _bool_getter_maker(
+            case_insensitive_prefixes, name="Case insensitive prefixes"
+        )
         self._ignore_bots_getter = _bool_getter_maker(ignore_bots, name="Ignore bots")
         self._owners: list[int] = []
         self.set_owners(owners)
@@ -185,7 +199,7 @@ class Bot(hikari.GatewayBot):
         self._names_to_components: dict[str, Component] = {}
         self._hooks: BotHooks = BotHooks()
         self.subscribe(hikari.MessageCreateEvent, self.on_message_create)
-    
+
     async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
         user = self.get_me()
         if user is None:
@@ -206,22 +220,28 @@ class Bot(hikari.GatewayBot):
         return self
 
     def set_case_insensitive_commands(self, bool_or_getter: BoolArgType) -> Bot:
-        self._case_insensitive_commands_getter = _bool_getter_maker(bool_or_getter, name="Case insensitive commands")
+        self._case_insensitive_commands_getter = _bool_getter_maker(
+            bool_or_getter, name="Case insensitive commands"
+        )
         return self
 
     def set_case_insensitive_prefixes(self, bool_or_getter: BoolArgType) -> Bot:
-        self._case_insensitive_prefixes_getter = _bool_getter_maker(bool_or_getter, name="Case insensitive prefixes")
+        self._case_insensitive_prefixes_getter = _bool_getter_maker(
+            bool_or_getter, name="Case insensitive prefixes"
+        )
         return self
 
     def set_ignore_bots(self, bool_or_getter: BoolArgType) -> Bot:
-        self._ignore_bots_getter = _bool_getter_maker(bool_or_getter, name="Ignore bots")
+        self._ignore_bots_getter = _bool_getter_maker(
+            bool_or_getter, name="Ignore bots"
+        )
         return self
 
     def set_owners(self, owners: t.Iterable[t.Union[hikari.User, int]]) -> Bot:
         if not isinstance(owners, t.Iterable):
             raise TypeError(f"Owners must be an iterable, not type {type(owners)}")
         else:
-            self._owners: list[int] = []
+            self._owners.clear()
             for owner in owners:
                 if isinstance(owner, hikari.User):
                     self._owners.append(int(owner.id))
@@ -404,7 +424,7 @@ class Bot(hikari.GatewayBot):
                 if content.startswith(prefix_):
                     prefix = prefix_
 
-        if not (content := content[len(prefix):].lstrip()):
+        if not (content := content[len(prefix) :].lstrip()):
             return
 
         for component in self._names_to_components.values():
@@ -412,7 +432,7 @@ class Bot(hikari.GatewayBot):
                 partial_context, prefix, content
             ):
                 return
-    
+
     def __getattr__(self, item):
         if item in self._custom_attributes:
             return self._custom_attributes[item]
