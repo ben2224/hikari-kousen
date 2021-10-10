@@ -21,60 +21,20 @@
 #  SOFTWARE.
 from __future__ import annotations
 import typing as t
-import functools
-import inspect
 from hikari.events import Event
 
 from kousen.hooks import ComponentHooks
 from kousen.context import MessageContext
 from kousen.commands import MessageCommand
+from kousen.utils._getters import _parser_getter_maker
 
 if t.TYPE_CHECKING:
     from kousen.context import PartialMessageContext
     from kousen.tasks import Task
-    from kousen.handler import Bot, ParserGetterType, ParserArgType, _base_getter, _base_getter_with_callback
-    # todo can't import under type checking so move out of handler file
+    from kousen.listeners import Listener
+    from kousen.handler import Bot, ParserGetterType, ParserArgType
 
-__all__: list[str] = ["create_listener", "Listener", "Component", "ComponentExtender"]
-
-
-def create_listener(event_type: Event, *, pass_bot: bool = False):
-    return lambda callback: Listener(event_type, callback, pass_bot=pass_bot)
-
-
-class Listener:
-
-    __slots__ = ("_event_type", "_callback", "_pass_bot")
-
-    def __init__(
-        self,
-        event_type: Event,
-        callback: t.Callable[..., t.Coroutine[None, None, t.Any]],
-        *,
-        pass_bot=False,
-    ):
-        self._event_type = event_type
-        self._callback = callback
-        self._pass_bot = pass_bot
-
-    def __call__(self, *args, **kwargs):
-        await self._callback(*args, **kwargs)
-
-
-def _convert_parser_to_getter(parser: ParserArgType) -> ParserGetterType:
-    if isinstance(parser, str):
-        return functools.partial(_base_getter, return_object=parser)
-
-    elif inspect.iscoroutinefunction(parser):
-        return functools.partial(
-            _base_getter_with_callback,
-            callback=parser,
-            result_type=[str],
-            error_text="The parser getter must return a string.")
-    else:
-        raise TypeError(
-            f"Parser must be either a string or a coroutine, not type {type(parser)}."
-        )
+__all__: list[str] = ["Component", "ComponentExtender"]
 
 
 class Component:
@@ -103,7 +63,7 @@ class Component:
         self._hooks: ComponentHooks = ComponentHooks()
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
-        self._custom_parser: t.Optional[ParserGetterType] = _convert_parser_to_getter(parser) if parser else None
+        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
         self._global_parser: t.Optional[ParserGetterType] = None
         # todo fix type problem
 
@@ -111,7 +71,7 @@ class Component:
         self._bot = bot
         return self
 
-    def _set_parser(self, parser: ParserGetterType):  # todo make a getter
+    def _set_parser(self, parser: ParserGetterType):
         self._global_parser = parser
         if not self._custom_parser:
             for command in self._names_to_message_commands.values():

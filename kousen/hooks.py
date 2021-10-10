@@ -108,8 +108,7 @@ class Hooks:
         """
         if hook_callables := self._all_hooks.get(hook_type):
             for callable_ in hook_callables:
-                await _await_if_async(callable_, **kwargs)
-                # todo turn dict into values iterable then pass unpacked *(kwargs.values)
+                await _await_if_async(callable_, *(kwargs.values()))
             return True
         return False
 

@@ -19,30 +19,31 @@
 #  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
-
 from __future__ import annotations
 import typing as t
+from hikari.events import Event
 
-from kousen.checks import *
-from kousen.colours import *
-from kousen.commands import *
-from kousen.components import *
-from kousen.context import *
-from kousen.errors import *
-from kousen.handler import *
-from kousen.hooks import *
-from kousen.listeners import *
-from kousen.tasks import *
+__all__: list[str] = ["create_listener", "Listener"]
 
-__all__: t.Final[list[str]] = [
-    *checks.__all__,
-    *colours.__all__,
-    *commands.__all__,
-    *components.__all__,
-    *context.__all__,
-    *errors.__all__,
-    *handler.__all__,
-    *hooks.__all__,
-    *listeners.__all__,
-    *tasks.__all__,
-]
+
+def create_listener(event_type: Event, *, pass_bot: bool = False):
+    return lambda callback: Listener(event_type, callback, pass_bot=pass_bot)
+
+
+class Listener:
+
+    __slots__ = ("_event_type", "_callback", "_pass_bot")
+
+    def __init__(
+        self,
+        event_type: Event,
+        callback: t.Callable[..., t.Coroutine[None, None, t.Any]],
+        *,
+        pass_bot=False,
+    ):
+        self._event_type = event_type
+        self._callback = callback
+        self._pass_bot = pass_bot
+
+    def __call__(self, *args, **kwargs):
+        await self._callback(*args, **kwargs)

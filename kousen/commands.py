@@ -21,15 +21,14 @@
 #  SOFTWARE.
 from __future__ import annotations
 import typing as t
-import inspect
-import functools
 
 from kousen.hooks import CommandHooks, dispatch_hooks, _HookTypes
 from kousen.errors import CheckError, CommandError
+from kousen.utils._getters import _parser_getter_maker
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
-    from kousen.handler import ParserGetterType, ParserArgType, _base_getter, _base_getter_with_callback
+    from kousen.handler import ParserGetterType, ParserArgType
 
 __all__: list[str] = [
     "MessageCommand",
@@ -67,22 +66,6 @@ def create_message_command_group(name: str, *, aliases: t.Optional[t.Iterable[st
     return decorate
 
 
-def _convert_parser_to_getter(parser: ParserArgType) -> ParserGetterType:
-    if isinstance(parser, str):
-        return functools.partial(_base_getter, return_object=parser)
-
-    elif inspect.iscoroutinefunction(parser):
-        return functools.partial(
-            _base_getter_with_callback,
-            callback=parser,
-            result_type=[str],
-            error_text="The parser getter must return a string.")
-    else:
-        raise TypeError(
-            f"Parser must be either a string or a coroutine, not type {type(parser)}."
-        )
-
-
 class MessageCommand:
     __slots__ = (
         "_callback",
@@ -110,7 +93,7 @@ class MessageCommand:
         if aliases:
             self._aliases.extend(list(*map(str, aliases)))
         self._parent: t.Optional[MessageCommandGroup] = None
-        self._custom_parser: t.Optional[ParserGetterType] = _convert_parser_to_getter(parser) if parser else None
+        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
         self._global_parser: t.Optional[ParserGetterType] = None
         self._component: t.Optional[Component] = None
         self._checks: list = []
@@ -120,7 +103,7 @@ class MessageCommand:
         self._parent = parent
         return self
 
-    def _set_parser(self, parser: ParserGetterType) -> MessageCommand:  # todo make getter
+    def _set_parser(self, parser: ParserGetterType) -> MessageCommand:
         self._global_parser = parser
         return self
 
@@ -230,7 +213,7 @@ class MessageCommandGroup(MessageCommand):
         super().__init__(callback=callback, name=name, aliases=aliases, parser=parser)
         self._names_to_commands: dict[str, MessageCommand] = {}
 
-    def _set_parser(self, parser: ParserGetterType) -> MessageCommand:  # todo make getter
+    def _set_parser(self, parser: ParserGetterType) -> MessageCommand:
         self._global_parser = parser
         for command in self._names_to_commands.values():
             command._set_parser(parser)

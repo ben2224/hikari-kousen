@@ -24,7 +24,6 @@ import logging
 import sys
 import typing as t
 import inspect
-import functools
 import importlib
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import hikari
@@ -33,6 +32,7 @@ from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload
 from kousen.hooks import dispatch_hooks, BotHooks, _HookTypes
+from kousen.utils._getters import _bool_getter_maker, _parser_getter_maker, _prefix_getter_maker
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
@@ -72,59 +72,6 @@ def loader(callback: t.Callable[["Bot"], t.Any]) -> _Loader:
 
 def unloader(callback: t.Callable[["Bot"], t.Any]) -> _UnLoader:
     return _UnLoader(callback)
-
-
-async def _prefix_getter_with_callback(
-    partial_context: PartialMessageContext, callback
-) -> list[str]:
-    getter_result = await callback(partial_context)
-
-    if isinstance(getter_result, str):
-        return [getter_result]
-
-    if isinstance(getter_result, t.Iterable):
-        list1: list[str] = []
-        list1.extend(list(*map(str, getter_result)))
-        return list1
-
-    else:
-        raise TypeError(
-            f"The prefix callback must return a string or iterable of strings, not type {type(getter_result)}"
-        )
-
-
-def _base_bool_getter_handler(callable_or_bool, name: str):
-    if isinstance(callable_or_bool, bool):
-        return functools.partial(_base_getter, return_object=callable_or_bool)
-    elif inspect.iscoroutinefunction(callable_or_bool):
-        return functools.partial(
-            _base_getter_with_callback,
-            callback=callable_or_bool,
-            result_type=[bool],
-            error_text=f"The {name} callback must return a bool",
-        )
-    else:
-        raise TypeError(
-            f"{name.capitalize()} arg must be either a bool or a coroutine, not type {type(callable_or_bool)}"
-        )
-
-
-async def _base_getter_with_callback(
-    partial_context_or_context,
-    callback,
-    result_types: t.Iterable[t.Any],
-    error_text: str,
-):
-    getter_result = await callback(partial_context_or_context)
-    for result_tp in result_types:
-        if isinstance(getter_result, result_tp):
-            return getter_result
-    else:
-        raise TypeError(f"{error_text}, not type {type(getter_result)}")
-
-
-async def _base_getter(_, return_obj):
-    return return_obj
 
 
 class Bot(hikari.GatewayBot):
@@ -171,9 +118,9 @@ class Bot(hikari.GatewayBot):
         "_prefix_getter",
         "_mention_prefixes",
         "_default_parser_getter",
-        "_case_insensitive_commands",
+        "_case_insensitive_commands_getter",
         "_case_insensitive_prefixes_getter",
-        "_ignore_bots",
+        "_ignore_bots_getter",
         "_owners",
         "_custom_attributes",
         "_default_embed_colour",
@@ -213,20 +160,17 @@ class Bot(hikari.GatewayBot):
             self.subscribe(hikari.StartedEvent, self._setup_mention_prefixes)
         if default_prefix is None:
             default_prefix = []
-            
-        self._prefix_getter: PrefixGetterType = None
-        self._default_parser_getter: ParserGetterType = None
-        self._case_insensitive_commands_getter: BoolGetterType = None
-        self._case_insensitive_prefixes_getter: BoolGetterType = None
-        self._ignore_bots_getter: BoolGetterType = None
-        self._owners: list[int] = None
-        # todo fix type problems
 
-        self.set_default_prefix(default_prefix)
-        self.set_default_parser(default_parser)
-        self.set_case_insensitive_commands(case_insensitive_commands)
-        self.set_case_insensitive_prefixes(case_insensitive_prefixes)
-        self.set_ignore_bots(ignore_bots)
+        self._prefix_getter = _prefix_getter_maker(default_prefix)
+        self._default_parser_getter = _parser_getter_maker(default_parser)
+        for component in self._names_to_components.values():
+            component._set_parser(self._default_parser_getter)
+        self._case_insensitive_commands_getter = _bool_getter_maker(case_insensitive_commands,
+                                                                    name="Case insensitive commands")
+        self._case_insensitive_prefixes_getter = _bool_getter_maker(case_insensitive_prefixes,
+                                                                    name="Case insensitive prefixes")
+        self._ignore_bots_getter = _bool_getter_maker(ignore_bots, name="Ignore bots")
+        self._owners: list[int] = []
         self.set_owners(owners)
 
         if isinstance(scheduler, AsyncIOScheduler):
@@ -250,91 +194,27 @@ class Bot(hikari.GatewayBot):
         self._mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
 
     def set_default_prefix(self, prefix: PrefixArgType) -> Bot:
-        if isinstance(prefix, str):
-            self._prefix_getter: PrefixGetterType = functools.partial(_base_getter, return_object=[prefix])
-
-        elif isinstance(prefix, t.Iterable):
-            prefix_list = list(*map(str, prefix))
-            self._prefix_getter: PrefixGetterType = functools.partial(_base_getter, return_object=prefix_list)
-
-        elif inspect.iscoroutinefunction(prefix):
-            self._prefix_getter: PrefixGetterType = functools.partial(_prefix_getter_with_callback, callback=prefix)
-
-        else:
-            raise TypeError(
-                f"Prefix must be either a string, or iterable of strings, or a coroutine, not type "
-                f"{type(prefix)}"
-            )
+        self._prefix_getter = _prefix_getter_maker(prefix)
         return self
 
     def set_default_parser(self, parser: ParserArgType) -> Bot:
-        if isinstance(parser, str):
-            self._default_parser_getter: ParserGetterType = functools.partial(_base_getter, return_object=parser)
-
-        elif inspect.iscoroutinefunction(parser):
-            self._default_parser_getter: ParserGetterType = functools.partial(
-                _base_getter_with_callback,
-                callback=parser,
-                result_type=[str],
-                error_text="The parser getter must return a string")
-        else:
-            raise TypeError(
-                f"Parser must be either a string or a coroutine, not type {type(parser)}"
-            )
+        self._default_parser_getter = _parser_getter_maker(parser)
 
         for component in self._names_to_components.values():
             component._set_parser(self._default_parser_getter)
+
         return self
 
     def set_case_insensitive_commands(self, bool_or_getter: BoolArgType) -> Bot:
-        if isinstance(bool_or_getter, bool):
-            self._case_insensitive_commands_getter = functools.partial(_base_getter, return_object=bool_or_getter)
-
-        elif inspect.iscoroutinefunction(bool_or_getter):
-            self._case_insensitive_commands_getter = functools.partial(
-                _base_getter_with_callback,
-                callback=bool_or_getter,
-                result_type=[bool],
-                error_text="The case insensitive commands getter must return a bool.")
-        else:
-            raise TypeError(
-                f"Case insensitive commands getter must be either a bool or a coroutine, not type {type(bool_or_getter)}"
-            )
-
+        self._case_insensitive_commands_getter = _bool_getter_maker(bool_or_getter, name="Case insensitive commands")
         return self
 
     def set_case_insensitive_prefixes(self, bool_or_getter: BoolArgType) -> Bot:
-        if isinstance(bool_or_getter, bool):
-            self._case_insensitive_prefixes_getter: BoolGetterType = functools.partial(_base_getter, return_object=bool_or_getter)
-
-        elif inspect.iscoroutinefunction(bool_or_getter):
-            self._case_insensitive_prefixes_getter: BoolGetterType = functools.partial(
-                _base_getter_with_callback,
-                callback=bool_or_getter,
-                result_type=[bool],
-                error_text="The case insensitive prefix getter must return a bool.")
-        else:
-            raise TypeError(
-                f"Case insensitive prefix getter must be either a bool or a coroutine, not type {type(bool_or_getter)}"
-            )
-
+        self._case_insensitive_prefixes_getter = _bool_getter_maker(bool_or_getter, name="Case insensitive prefixes")
         return self
 
     def set_ignore_bots(self, bool_or_getter: BoolArgType) -> Bot:
-        if isinstance(bool_or_getter, bool):
-            self._ignore_bots_getter: BoolGetterType = functools.partial(_base_getter, return_object=bool_or_getter)
-
-        elif inspect.iscoroutinefunction(bool_or_getter):
-            self._ignore_bots_getter: BoolGetterType = functools.partial(
-                _base_getter_with_callback,
-                callback=bool_or_getter,
-                result_type=[bool],
-                error_text="The ignore bots getter must return a bool.")
-        else:
-            raise TypeError(
-                f"Ignore bots getter must be either a bool or a coroutine, not type {type(bool_or_getter)}"
-            )
-
+        self._ignore_bots_getter = _bool_getter_maker(bool_or_getter, name="Ignore bots")
         return self
 
     def set_owners(self, owners: t.Iterable[t.Union[hikari.User, int]]) -> Bot:
