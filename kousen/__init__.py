@@ -21,6 +21,7 @@
 #  SOFTWARE.
 from __future__ import annotations
 
+from kousen._getters import *
 from kousen.checks import *
 from kousen.colours import *
 from kousen.commands import *
@@ -30,4 +31,5 @@ from kousen.errors import *
 from kousen.handler import *
 from kousen.hooks import *
 from kousen.listeners import *
+from kousen.parsing import *
 from kousen.tasks import *

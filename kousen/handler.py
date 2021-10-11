@@ -30,13 +30,14 @@ import hikari
 
 from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
-from kousen.errors import _MissingLoad, _MissingUnload
-from kousen.hooks import dispatch_hooks, BotHooks, _HookTypes
-from kousen.utils._getters import (
+from kousen.errors import _MissingLoad, _MissingUnload, CommandNotFound
+from kousen.hooks import dispatch_hooks, BotHooks, HookTypes
+from kousen._getters import (
     _bool_getter_maker,
     _parser_getter_maker,
     _prefix_getter_maker,
 )
+
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
@@ -45,18 +46,13 @@ __all__: list[str] = ["Bot", "loader", "unloader"]
 
 _LOGGER = logging.getLogger("kousen")
 
-PrefixGetterType = t.Callable[
-    [PartialMessageContext], t.Coroutine[None, None, list[str]]
-]
+PrefixGetterType = t.Callable[[PartialMessageContext], t.Coroutine[None, None, list[str]]]
 ParserGetterType = t.Callable[[MessageContext], t.Coroutine[None, None, str]]
 BoolGetterType = t.Callable[[PartialMessageContext], t.Coroutine[None, None, bool]]
-
 PrefixArgType = t.Union[
     str,
     t.Iterable[str],
-    t.Callable[
-        [PartialMessageContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]
-    ],
+    t.Callable[[PartialMessageContext], t.Coroutine[None, None, t.Union[str, t.Iterable[str]]]],
 ]
 ParserArgType = t.Union[str, ParserGetterType]
 BoolArgType = t.Union[bool, BoolGetterType]
@@ -163,9 +159,7 @@ class Bot(hikari.GatewayBot):
             self._cache_components = hikari.CacheComponents.ALL
 
         if mention_prefix is False and default_prefix is None:
-            raise ValueError(
-                "No default prefix was provided and mention_prefix was set to False."
-            )
+            raise ValueError("No default prefix was provided and mention_prefix was set to False.")
 
         self._mention_prefixes: list[str] = []
         if mention_prefix is True or default_prefix is None:
@@ -220,21 +214,15 @@ class Bot(hikari.GatewayBot):
         return self
 
     def set_case_insensitive_commands(self, bool_or_getter: BoolArgType) -> Bot:
-        self._case_insensitive_commands_getter = _bool_getter_maker(
-            bool_or_getter, name="Case insensitive commands"
-        )
+        self._case_insensitive_commands_getter = _bool_getter_maker(bool_or_getter, name="Case insensitive commands")
         return self
 
     def set_case_insensitive_prefixes(self, bool_or_getter: BoolArgType) -> Bot:
-        self._case_insensitive_prefixes_getter = _bool_getter_maker(
-            bool_or_getter, name="Case insensitive prefixes"
-        )
+        self._case_insensitive_prefixes_getter = _bool_getter_maker(bool_or_getter, name="Case insensitive prefixes")
         return self
 
     def set_ignore_bots(self, bool_or_getter: BoolArgType) -> Bot:
-        self._ignore_bots_getter = _bool_getter_maker(
-            bool_or_getter, name="Ignore bots"
-        )
+        self._ignore_bots_getter = _bool_getter_maker(bool_or_getter, name="Ignore bots")
         return self
 
     def set_owners(self, owners: t.Iterable[t.Union[hikari.User, int]]) -> Bot:
@@ -248,9 +236,7 @@ class Bot(hikari.GatewayBot):
                 elif isinstance(owner, int):
                     self._owners.append(int(owner))
                 else:
-                    raise TypeError(
-                        f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}"
-                    )
+                    raise TypeError(f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}")
         return self
 
     @property
@@ -404,7 +390,7 @@ class Bot(hikari.GatewayBot):
 
         partial_context = PartialMessageContext(self, event.message)
 
-        if await self._ignore_bots(partial_context) and not event.is_human:
+        if await self._ignore_bots_getter(partial_context) and not event.is_human:
             return
 
         prefix: str = ""
@@ -428,17 +414,20 @@ class Bot(hikari.GatewayBot):
             return
 
         for component in self._names_to_components.values():
-            if await component._parse_content_for_command(
-                partial_context, prefix, content
-            ):
+            if await component._parse_content_for_command(partial_context, prefix, content):
                 return
+
+        dispatch_hooks(
+            HookTypes.ERROR,
+            self._hooks,
+            error=CommandNotFound(partial_context, content.split(" ", maxsplit=1)[0]),
+        )
+        return
 
     def __getattr__(self, item):
         if item in self._custom_attributes:
             return self._custom_attributes[item]
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{item}'"
-        )
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
 
     def add_custom_attribute(self, name: str, attribute_value: t.Any) -> Bot:
         """
@@ -512,9 +501,7 @@ class Bot(hikari.GatewayBot):
         """
         name = str(name)
         if name not in self._custom_attributes:
-            raise ValueError(
-                f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'"
-            )
+            raise ValueError(f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'")
         self._custom_attributes[name] = new_attribute_value
         return self
 
@@ -585,9 +572,7 @@ class Bot(hikari.GatewayBot):
         for _module_path in all_module_paths:
             _module_path.replace("/", ".").strip(".")
             if _module_path in self._loaded_modules:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to load because it was already loaded."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to load because it was already loaded.")
             try:
                 _module = importlib.import_module(_module_path)
                 for _, member in inspect.getmembers(_module):
@@ -597,9 +582,7 @@ class Bot(hikari.GatewayBot):
                         _LOGGER.info(f"module {_module_path} was successfully loaded.")
                         break
                 else:
-                    _LOGGER.error(
-                        f"The module {_module_path} failed to load because no loader function was found."
-                    )
+                    _LOGGER.error(f"The module {_module_path} failed to load because no loader function was found.")
             except Exception as ex:
                 _LOGGER.error(f"The module {_module_path} failed to load.", exc_info=ex)
 
@@ -635,9 +618,7 @@ class Bot(hikari.GatewayBot):
         for _module_path in all_module_paths:
             _module_path.replace("/", ".").strip(".")
             if _module_path not in self._loaded_moduless:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to unload because it was not loaded."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to unload because it was not loaded.")
             try:
                 _module = importlib.import_module(_module_path)
                 for _, member in inspect.getmembers(_module):
@@ -645,18 +626,12 @@ class Bot(hikari.GatewayBot):
                         member(self)
                         self._loaded_moduless.remove(_module_path)
                         sys.modules.pop(_module_path)
-                        _LOGGER.info(
-                            f"module {_module_path} was successfully unloaded."
-                        )
+                        _LOGGER.info(f"module {_module_path} was successfully unloaded.")
                         break
                 else:
-                    _LOGGER.error(
-                        f"The module {_module_path} failed to unload because no unloader function was found."
-                    )
+                    _LOGGER.error(f"The module {_module_path} failed to unload because no unloader function was found.")
             except Exception as ex:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to unload.", exc_info=ex
-                )
+                _LOGGER.error(f"The module {_module_path} failed to unload.", exc_info=ex)
 
         return self
 
@@ -690,9 +665,7 @@ class Bot(hikari.GatewayBot):
 
         for _module_path in all_module_paths:
             if _module_path not in self._loaded_moduless:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload because it was not loaded."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload because it was not loaded.")
             old_module = sys.modules.pop(_module_path)
             try:
                 module = importlib.import_module(_module_path)
@@ -714,23 +687,17 @@ class Bot(hikari.GatewayBot):
 
             except _MissingUnload:
                 sys.modules[_module_path] = old_module
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload because no unloader function was found."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload because no unloader function was found.")
             except _MissingLoad:
                 sys.modules[_module_path] = old_module
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload because no loader function was found."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload because no loader function was found.")
             except Exception as ex:
                 sys.modules[_module_path] = old_module
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload.", exc_info=ex
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload.", exc_info=ex)
 
         return self
 
-    async def add_component(self, component: Component) -> Bot:
+    def add_component(self, component: Component) -> Bot:
         if component in self._names_to_components.values():
             return self  # todo raise error
 
@@ -738,25 +705,24 @@ class Bot(hikari.GatewayBot):
         component._set_bot(self)
         component._set_parser(self._default_parser_getter)
 
-        await dispatch_hooks(
-            _HookTypes.COMPONENT_ADDED,
+        dispatch_hooks(
+            HookTypes.COMPONENT_ADDED,
             bot_hooks=self._hooks,
             component_hooks=component._hooks,
         )
 
         return self
 
-    async def remove_component(self, component_name: str) -> Bot:
+    def remove_component(self, component_name: str) -> Bot:
         if component_name not in self._names_to_components:
             return self  # todo raise error
 
         component = self._names_to_components.pop(component_name)
-        await dispatch_hooks(
-            _HookTypes.COMPONENT_ADDED,
+        dispatch_hooks(
+            HookTypes.COMPONENT_ADDED,
             bot_hooks=self._hooks,
             component_hooks=component._hooks,
         )
-        # todo use asyncio tasks to make not async func
         component._set_bot(None)
 
         return self

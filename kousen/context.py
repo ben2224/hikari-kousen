@@ -105,9 +105,7 @@ class PartialMessageContext:
             return None
 
         if self._message.guild_id is not None:
-            shard_id = hikari.snowflakes.calculate_shard_id(
-                self.bot.shard_count, self._message.guild_id
-            )
+            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, self._message.guild_id)
         else:
             shard_id = 0
 
@@ -124,6 +122,18 @@ class PartialMessageContext:
             The message object.
         """
         return self._message
+
+    @property
+    def content(self) -> t.Optional[str]:
+        """
+        The content of the message that the context relates to.
+
+        Returns
+        -------
+        :obj:`str`
+            The message content.
+        """
+        return self._message.content
 
     @property
     def author(self) -> hikari.User:
@@ -161,9 +171,7 @@ class PartialMessageContext:
             Whether or not the author is a human.
         """
         return (
-            not self._message.author.is_system
-            and not self._message.author.is_bot
-            and self._message.webhook_id is None
+            not self._message.author.is_system and not self._message.author.is_bot and self._message.webhook_id is None
         )
 
     @property
@@ -330,20 +338,14 @@ class PartialMessageContext:
         content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
         *,
         attachment: hikari.UndefinedOr[hikari.Resourceish] = hikari.UNDEFINED,
-        attachments: hikari.UndefinedOr[
-            t.Sequence[hikari.Resourceish]
-        ] = hikari.UNDEFINED,
+        attachments: hikari.UndefinedOr[t.Sequence[hikari.Resourceish]] = hikari.UNDEFINED,
         component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
-        components: hikari.UndefinedOr[
-            t.Sequence[hikari.api.ComponentBuilder]
-        ] = hikari.UNDEFINED,
+        components: hikari.UndefinedOr[t.Sequence[hikari.api.ComponentBuilder]] = hikari.UNDEFINED,
         embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
         embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
         nonce: hikari.UndefinedOr[str] = hikari.UNDEFINED,
         tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-        reply: t.Union[
-            hikari.UndefinedType, hikari.SnowflakeishOr[hikari.PartialMessage], bool
-        ] = hikari.UNDEFINED,
+        reply: t.Union[hikari.UndefinedType, hikari.SnowflakeishOr[hikari.PartialMessage], bool] = hikari.UNDEFINED,
         mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
         mentions_reply: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
         user_mentions: hikari.UndefinedOr[
@@ -410,11 +412,9 @@ class MessageContext(PartialMessageContext):
         The name of the command the user used to invoke the message command.
     command : :obj:`~.commands.MessageCommand`
         The object of the message command that was invoked by the user.
-    args : :obj:`str`
-        A string of the raw args passed by the user.
     """
 
-    __slots__ = ("_prefix", "_invoked_with", "_command", "_parser", "_args")
+    __slots__ = ("_prefix", "_invoked_with", "_command", "_parser", "_raw_args")
 
     def __init__(
         self,
@@ -424,16 +424,12 @@ class MessageContext(PartialMessageContext):
         prefix: str,
         invoked_with: str,
         command: MessageCommand,
-        args: str,
     ) -> None:
         super().__init__(bot=bot, message=message)
         self._prefix: str = prefix
-        self._parser: ParserGetterType = (
-            command._custom_parser or command._global_parser
-        )
+        self._parser: ParserGetterType = command._custom_parser or command._global_parser
         self._invoked_with: str = invoked_with
         self._command: MessageCommand = command
-        self._args: str = args
 
     @property
     def prefix(self) -> str:
@@ -456,8 +452,8 @@ class MessageContext(PartialMessageContext):
         return self._command.component
 
     @property
-    def args(self) -> str:
-        return self._args
+    def raw_args(self) -> str:
+        return self.content[len(self._prefix) :]
 
     @classmethod
     def _create_from_partial_context(
@@ -466,7 +462,6 @@ class MessageContext(PartialMessageContext):
         prefix: str,
         invoked_with: str,
         command: MessageCommand,
-        args: str,
     ) -> "MessageContext":
         return cls(
             bot=partial_context._bot,
@@ -474,5 +469,4 @@ class MessageContext(PartialMessageContext):
             prefix=prefix,
             invoked_with=invoked_with,
             command=command,
-            args=args,
         )

@@ -25,8 +25,8 @@ from hikari.events import Event
 
 from kousen.hooks import ComponentHooks
 from kousen.context import MessageContext
-from kousen.commands import MessageCommand
-from kousen.utils._getters import _parser_getter_maker
+from kousen.commands import MessageCommand, MessageCommandGroup
+from kousen._getters import _parser_getter_maker
 
 if t.TYPE_CHECKING:
     from kousen.context import PartialMessageContext
@@ -63,11 +63,8 @@ class Component:
         self._hooks: ComponentHooks = ComponentHooks()
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
-        self._custom_parser: t.Optional[ParserGetterType] = (
-            _parser_getter_maker(parser) if parser else None
-        )
+        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
         self._global_parser: t.Optional[ParserGetterType] = None
-        # todo fix type problem
 
     def _set_bot(self, bot: t.Optional[Bot]) -> Component:
         self._bot = bot
@@ -139,11 +136,14 @@ class Component:
         name = content.split(" ", maxsplit=1)[0]
         if not (command := self.get_command(name)):
             return False
+        while isinstance(command, MessageCommandGroup):
+            if cmd := command.get_command(new_name := name.split(" ", maxsplit=1)[0]):
+                name = new_name
+                command = cmd
+            break
 
         args, kwargs = command._parse_content_for_args(content)
-        context = MessageContext._create_from_partial_context(
-            partial_context, prefix, name, command, content
-        )
+        context = MessageContext._create_from_partial_context(partial_context, prefix, name, command)
 
         await command.invoke(context, args, kwargs)
         return True

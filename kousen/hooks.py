@@ -20,14 +20,21 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 import typing as t
+import asyncio
 from hikari.internal.enums import Enum
 
 from kousen.utils import _await_if_async
 
-__all__: list[str] = ["Hooks", "CommandHooks", "ComponentHooks", "BotHooks"]
+__all__: list[str] = [
+    "HookTypes",
+    "Hooks",
+    "CommandHooks",
+    "ComponentHooks",
+    "BotHooks",
+]
 
 
-class _HookTypes(str, Enum):
+class HookTypes(str, Enum):
     ERROR = "error"
     CHECK_ERROR = "check_error"
 
@@ -39,26 +46,26 @@ class _HookTypes(str, Enum):
     COMPONENT_REMOVED = "component_removed"
 
 
-async def dispatch_hooks(
-    hook_type: _HookTypes,
+def dispatch_hooks(
+    hook_type: HookTypes,
     bot_hooks: "BotHooks",
-    component_hooks: "ComponentHooks",
     *,
+    component_hooks: t.Optional["ComponentHooks"] = None,
     command_hooks: t.Optional["CommandHooks"] = None,
     **kwargs,
 ) -> bool:
     """
-    Method used to dispatch all the hooks for that hook type taking into account component/command local overwrites.
+    Method used by kousen to dispatch all the hooks for that hook type taking into account component/command local overwrites.
 
     Parameters
     ----------
-    hook_type : :obj:`.hooks._HookTypes`
+    hook_type : :obj:`.hooks.HookTypes`
         The hook type to dispatch.
-    bot_hooks : :obj:`.hooks._Hooks`
+    bot_hooks : :obj:`.hooks.BotHooks`
         The bot's hooks.
-    component_hooks : :obj:`.hooks._Hooks`
+    component_hooks : Optional[:obj:`.hooks.ComponentHooks`]
         The component's hooks which overwrites the bot's hooks.
-    command_hooks : Optional[:obj:`.hooks._Hooks`]
+    command_hooks : Optional[:obj:`.hooks.CommandHooks`]
         The command's hooks which overwrites both the bot's and component's hooks. (Not relevant for non-command related
         hooks)
     **kwargs : dict[`str`, `Any`]
@@ -69,36 +76,38 @@ async def dispatch_hooks(
     :obj:`bool`
         True if any hooks were dispatched, false if there were no set hooks.
     """
+    return asyncio.get_running_loop().run_until_complete(
+        _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs)
+    )
+
+
+async def _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs) -> bool:
     if command_hooks:
         if await command_hooks.dispatch(hook_type, **kwargs):
             return True
+    if component_hooks:
         if await component_hooks.dispatch(hook_type, **kwargs):
             return True
-        if await bot_hooks.dispatch(hook_type, **kwargs):
-            return True
-        return False
-
-    if await component_hooks.dispatch(hook_type, **kwargs):
-        return True
     if await bot_hooks.dispatch(hook_type, **kwargs):
         return True
     return False
 
 
 class Hooks:
+    # todo go through each dispatch and make sure that have the right additional kwargs (e.g. error)
 
     __slots__ = ("_all_hooks",)
 
     def __init__(self):
-        self._all_hooks: dict[_HookTypes, list[t.Callable]] = {}
+        self._all_hooks: dict[HookTypes, list[t.Callable]] = {}
 
-    async def dispatch(self, hook_type: _HookTypes, **kwargs) -> bool:
+    async def dispatch(self, hook_type: HookTypes, **kwargs) -> bool:
         """
         Method used to dispatch all the hook callables for that hook type.
 
         Parameters
         ----------
-        hook_type : :obj:`.hooks._HookTypes`
+        hook_type : :obj:`.hooks.HookTypes`
             The hook type to dispatch.
 
         Returns

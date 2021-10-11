@@ -23,49 +23,14 @@ from __future__ import annotations
 import typing as t
 
 if t.TYPE_CHECKING:
-    from kousen.context import PartialMessageContext
+    ...
 
-__all__: list[str] = ["KousenError", "CheckError", "CommandError", "CommandNotFound"]
-
-
-class KousenError(Exception):
-    """The base exception for all errors raised by Kousen."""
-
-    __slots__ = ()
+__all__: list[str] = ["parse_content_for_args"]
 
 
-class CheckError(KousenError):
-    """The base exception for all check errors."""
-
-    __slots__ = ("context",)
-
-    def __init__(self, context: PartialMessageContext) -> None:
-        self.context: PartialMessageContext = context
-
-
-class CommandError(KousenError):
-    """Exception for raw errors that occur inside a command."""
-
-    __slots__ = ("context", "raw_error")
-
-    def __init__(self, context: PartialMessageContext, raw_error: Exception) -> None:
-        self.context: PartialMessageContext = context
-        self.raw_error: Exception = raw_error
-
-
-class CommandNotFound(KousenError):
-    """Exception raised when a command could not be found by the name used."""
-
-    __slots__ = ("context", "name")
-
-    def __init__(self, context: PartialMessageContext, name: str) -> None:
-        self.context = context
-        self.name: str = name
-
-
-class _MissingUnload(Exception):
+def parse_content_for_args(command, content: str) -> tuple[tuple[t.Any], dict[str, t.Any]]:
     ...
 
 
-class _MissingLoad(Exception):
+def with_argument(converter, *, keyword: t.Optional[str] = None, default: t.Optional[t.Any] = None):
     ...
