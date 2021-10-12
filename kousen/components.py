@@ -76,7 +76,7 @@ class Component:
             for command in self._names_to_message_commands.values():
                 command._set_parser(parser)
 
-    def add_hooks_to_bot(self):
+    def add_hook_callback_to_bot(self):
         ...  # waits until bot exists then adds to hooks, as connected to component before component is loaded
 
     def add_message_command(self, command: MessageCommand) -> Component:
