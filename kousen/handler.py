@@ -705,11 +705,12 @@ class Bot(hikari.GatewayBot):
         component._set_bot(self)
         component._set_parser(self._default_parser_getter)
 
-        dispatch_hooks(
-            HookTypes.COMPONENT_ADDED,
-            bot_hooks=self._hooks,
-            component_hooks=component._hooks,
-        )
+        if self._is_alive:
+            dispatch_hooks(
+                HookTypes.COMPONENT_ADDED,
+                bot_hooks=self._hooks,
+                component_hooks=component._hooks,
+            )
 
         return self
 
@@ -718,11 +719,13 @@ class Bot(hikari.GatewayBot):
             return self  # todo raise error
 
         component = self._names_to_components.pop(component_name)
-        dispatch_hooks(
-            HookTypes.COMPONENT_ADDED,
-            bot_hooks=self._hooks,
-            component_hooks=component._hooks,
-        )
+
+        if self._is_alive:
+            dispatch_hooks(
+                HookTypes.COMPONENT_ADDED,
+                bot_hooks=self._hooks,
+                component_hooks=component._hooks,
+            )
         component._set_bot(None)
 
         return self
