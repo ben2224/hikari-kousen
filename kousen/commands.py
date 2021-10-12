@@ -22,7 +22,7 @@
 from __future__ import annotations
 import typing as t
 
-from kousen.hooks import CommandHooks, dispatch_hooks, HookTypes
+from kousen.hooks import Hooks, dispatch_hooks, HookTypes
 from kousen.errors import CheckError, CommandError
 from kousen._getters import _parser_getter_maker
 from kousen.parsing import parse_content_for_args
@@ -83,7 +83,7 @@ class MessageCommand:
         *,
         callback,
         name: str,
-        aliases: t.Optional[list[str]] = None,
+        aliases: t.Optional[t.Iterable[str]] = None,
         parser: t.Optional[ParserArgType] = None,
     ) -> None:
         self._callback = callback
@@ -96,7 +96,7 @@ class MessageCommand:
         self._global_parser: t.Optional[ParserGetterType] = None
         self._component: t.Optional[Component] = None
         self._checks: list = []
-        self._hooks: CommandHooks = CommandHooks()
+        self._hooks: Hooks = Hooks(self, "command")
 
     def _set_parent(self, parent: t.Optional[MessageCommandGroup]) -> MessageCommand:
         self._parent = parent
@@ -149,7 +149,7 @@ class MessageCommand:
         return self._checks
 
     @property
-    def hooks(self) -> CommandHooks:
+    def hooks(self) -> Hooks:
         return self._hooks
 
     @property
@@ -204,7 +204,7 @@ class MessageCommandGroup(MessageCommand):
         *,
         callback,
         name: str,
-        aliases: t.Optional[list[str]] = None,
+        aliases: t.Optional[t.Iterable[str]] = None,
         parser: t.Optional[ParserArgType] = None,
     ) -> None:
         super().__init__(callback=callback, name=name, aliases=aliases, parser=parser)

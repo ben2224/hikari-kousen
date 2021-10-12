@@ -21,17 +21,23 @@
 #  SOFTWARE.
 import typing as t
 import asyncio
+import logging
+import inspect
 from hikari.internal.enums import Enum
 
 from kousen.utils import _await_if_async
 
+if t.TYPE_CHECKING:
+    from kousen.handler import Bot
+    from kousen.components import Component
+    from kousen.commands import MessageCommand
+
 __all__: list[str] = [
     "HookTypes",
     "Hooks",
-    "CommandHooks",
-    "ComponentHooks",
-    "BotHooks",
 ]
+
+_LOGGER = logging.getLogger("kousen.hooks")
 
 
 class HookTypes(str, Enum):
@@ -46,13 +52,16 @@ class HookTypes(str, Enum):
     COMPONENT_REMOVED = "component_removed"
 
 
+_component_only_hooks = ("component_added", "component_removed")
+
+
 def dispatch_hooks(
     hook_type: HookTypes,
-    bot_hooks: "BotHooks",
+    bot_hooks: "Hooks",
     *,
-    component_hooks: t.Optional["ComponentHooks"] = None,
-    command_hooks: t.Optional["CommandHooks"] = None,
-    **kwargs,
+    component_hooks: t.Optional["Hooks"] = None,
+    command_hooks: t.Optional["Hooks"] = None,
+    **kwargs: t.Any,
 ) -> bool:
     """
     Method used by kousen to dispatch all the hooks for that hook type taking into account component/command local overwrites.
@@ -61,11 +70,11 @@ def dispatch_hooks(
     ----------
     hook_type : :obj:`.hooks.HookTypes`
         The hook type to dispatch.
-    bot_hooks : :obj:`.hooks.BotHooks`
+    bot_hooks : :obj:`.hooks.Hooks`
         The bot's hooks.
-    component_hooks : Optional[:obj:`.hooks.ComponentHooks`]
+    component_hooks : Optional[:obj:`.hooks.Hooks`]
         The component's hooks which overwrites the bot's hooks.
-    command_hooks : Optional[:obj:`.hooks.CommandHooks`]
+    command_hooks : Optional[:obj:`.hooks.Hooks`]
         The command's hooks which overwrites both the bot's and component's hooks. (Not relevant for non-command related
         hooks)
     **kwargs : dict[`str`, `Any`]
@@ -76,9 +85,9 @@ def dispatch_hooks(
     :obj:`bool`
         True if any hooks were dispatched, false if there were no set hooks.
     """
-    return asyncio.get_running_loop().run_until_complete(
-        _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs)
-    )
+    return asyncio.wait_for(
+        _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs), timeout=None
+    ).result()
 
 
 async def _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs) -> bool:
@@ -94,12 +103,15 @@ async def _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, 
 
 
 class Hooks:
-    # todo go through each dispatch and make sure that have the right additional kwargs (e.g. error)
 
-    __slots__ = ("_all_hooks",)
+    __slots__ = ("_all_hooks", "_instance", "_type")
 
-    def __init__(self):
+    def __init__(
+        self, instance: t.Union[Component, Bot, MessageCommand], _type: t.Literal["bot", "component", "command"]
+    ):
         self._all_hooks: dict[HookTypes, list[t.Callable]] = {}
+        self._instance: t.Union[Component, Bot, MessageCommand] = instance
+        self._type: t.Literal["bot", "component", "command"] = _type
 
     async def dispatch(self, hook_type: HookTypes, **kwargs) -> bool:
         """
@@ -121,70 +133,36 @@ class Hooks:
             return True
         return False
 
-    def on_error(self):
-        # error
-        ...
+    def with_hook_callback(self, hook_type: HookTypes):
+        def decorate(func: t.Callable):
+            self.add_hook_callback(hook_type, func)
+            return func
 
-    def add_on_error(self):
-        # error
-        ...
+        return decorate
 
-    def on_check_error(self):
-        # error
-        ...
+    def add_hook_callback(self, hook_type: HookTypes, callback: t.Callable) -> "Hooks":
+        error_msg = f"Failed to add hook callback '{callback}' to '{self._instance}' as "
+        if not isinstance(hook_type, HookTypes):
+            _LOGGER.error(error_msg + f"'{hook_type}' is not a valid hook type.")
+            return self
 
-    def add_on_check_error(self):
-        # error
-        ...
+        in_comp = hook_type.value in _component_only_hooks
+        if self._type == "command" and in_comp:
+            _LOGGER.error(error_msg + f"the hook type '{hook_type}' cannot be used with commands")
+            return self
 
-    def on_command_disabled(self):
-        # context
-        ...
+        params = len(inspect.signature(callback).parameters)
+        if in_comp and params != 2:
+            _LOGGER.error(error_msg + f"it takes {params} args when 2 will be passed.")
+            return self
+        if params != 1:
+            _LOGGER.error(error_msg + f"it takes {params} args when 1 will be passed.")
+            return self
 
-    def on_pre_invoke(self):
-        # context
-        ...
+        if hook_type in self._all_hooks:
+            self._all_hooks[hook_type].append(callback)
+        else:
+            self._all_hooks[hook_type] = [callback]
 
-    def and_on_pre_invoke(self):
-        # context
-        ...
-
-    def on_post_invoke(self):
-        # context
-        ...
-
-    def add_on_post_invoke(self):
-        # context
-        ...
-
-    def on_command_success(self):
-        # context
-        ...
-
-    def add_on_command_success(self):
-        # context
-        ...
-
-
-CommandHooks = Hooks
-
-
-class ComponentHooks(Hooks):
-    def on_component_added(self):
-        # component + bot
-        ...
-
-    def add_on_component_added(self):
-        # component + bot
-        ...
-
-    def on_component_removed(self):
-        # component + bot
-        ...
-
-    def add_on_component_removed(self):
-        # component + bot
-        ...
-
-
-BotHooks = ComponentHooks
+        _LOGGER.debug(f"Added '{hook_type.name}' hook callback '{callback}' to '{self._instance}'.")
+        return self

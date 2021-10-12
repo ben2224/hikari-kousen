@@ -31,7 +31,7 @@ import hikari
 from kousen.context import MessageContext, PartialMessageContext
 from kousen.colours import Colour
 from kousen.errors import _MissingLoad, _MissingUnload, CommandNotFound
-from kousen.hooks import dispatch_hooks, BotHooks, HookTypes
+from kousen.hooks import dispatch_hooks, Hooks, HookTypes
 from kousen._getters import (
     _bool_getter_maker,
     _parser_getter_maker,
@@ -191,7 +191,7 @@ class Bot(hikari.GatewayBot):
         self._default_embed_colour = default_embed_colour
         self._loaded_modules: list[str] = []
         self._names_to_components: dict[str, Component] = {}
-        self._hooks: BotHooks = BotHooks()
+        self._hooks: Hooks = Hooks(self, "bot")
         self.subscribe(hikari.MessageCreateEvent, self.on_message_create)
 
     async def _setup_mention_prefixes(self, _: hikari.StartedEvent) -> None:
@@ -373,13 +373,13 @@ class Bot(hikari.GatewayBot):
         return self._names_to_components.values()
 
     @property
-    def hooks(self) -> BotHooks:
+    def hooks(self) -> Hooks:
         """
         The bot's hooks that have been set.
 
         Returns
         -------
-        :obj:`.hooks.BotHooks`
+        :obj:`.hooks.Hooks`
             The bot's hooks.
         """
         return self._hooks
