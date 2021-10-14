@@ -22,7 +22,7 @@
 from __future__ import annotations
 import typing as t
 
-from kousen.hooks import Hooks, dispatch_hooks, HookTypes
+from kousen.hooks import HookManager, dispatch_hooks, HookTypes
 from kousen.errors import CheckError, CommandError
 from kousen._getters import _parser_getter_maker
 from kousen.parsing import parse_content_for_args
@@ -96,7 +96,7 @@ class MessageCommand:
         self._global_parser: t.Optional[ParserGetterType] = None
         self._component: t.Optional[Component] = None
         self._checks: list = []
-        self._hooks: Hooks = Hooks(self, "command")
+        self._hooks: HookManager = HookManager(self, "command")
 
     def _set_parent(self, parent: t.Optional[MessageCommandGroup]) -> MessageCommand:
         self._parent = parent
@@ -149,7 +149,7 @@ class MessageCommand:
         return self._checks
 
     @property
-    def hooks(self) -> Hooks:
+    def hooks(self) -> HookManager:
         return self._hooks
 
     @property

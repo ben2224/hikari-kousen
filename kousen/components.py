@@ -23,7 +23,7 @@ from __future__ import annotations
 import typing as t
 from hikari.events import Event
 
-from kousen.hooks import Hooks
+from kousen.hooks import HookManager
 from kousen.context import MessageContext
 from kousen.commands import MessageCommand, MessageCommandGroup
 from kousen._getters import _parser_getter_maker
@@ -45,6 +45,7 @@ class Component:
         "_listeners",
         "_names_to_tasks",
         "_hooks",
+        "_hook_names_added_to_bot",
         "_cooldowns",
         "_bot",
         "_custom_parser",
@@ -60,7 +61,8 @@ class Component:
         """Mapping of hikari event type against its listener objects."""
         self._names_to_tasks: dict[str, Task] = {}
         """Mapping of task name to task object."""
-        self._hooks: Hooks = Hooks(self, "component")
+        self._hooks: HookManager = HookManager(self, "component")
+        self._hook_names_added_to_bot: list[str] = []
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
         self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
@@ -78,6 +80,7 @@ class Component:
 
     def add_hook_callback_to_bot(self):
         ...  # waits until bot exists then adds to hooks, as connected to component before component is loaded
+        # also need to store somewhere to remove from bot when removing component from the bot
 
     def add_message_command(self, command: MessageCommand) -> Component:
         if command.name in self._names_to_message_commands:

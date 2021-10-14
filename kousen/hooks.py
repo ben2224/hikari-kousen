@@ -33,10 +33,7 @@ if t.TYPE_CHECKING:
     from kousen.components import Component
     from kousen.commands import MessageCommand
 
-__all__: list[str] = [
-    "HookTypes",
-    "Hooks",
-]
+__all__: list[str] = ["HookTypes", "Hook", "HookManager"]
 
 _LOGGER = logging.getLogger("kousen.hooks")
 
@@ -44,11 +41,11 @@ _LOGGER = logging.getLogger("kousen.hooks")
 class HookTypes(str, Enum):
     """
     Enum of all hook types dispatched.
-    The parameters listed for each type are the parameters that will be passed when calling the callback.
+    The parameters listed for each type are the parameters that will be passed when calling the hook callback.
 
     Note
     ----
-    Hooks that are related to components will not work for command hooks and will not be added to command hooks.
+    Hook types that are related to components will not work for command hooks and will not be added to command hooks.
     """
 
     ERROR = "error"
@@ -157,10 +154,10 @@ _component_only_hooks = ("component_added", "component_removed")
 
 def dispatch_hooks(
     hook_type: HookTypes,
-    bot_hooks: "Hooks",
+    bot_hooks: "HookManager",
     *,
-    component_hooks: t.Optional["Hooks"] = None,
-    command_hooks: t.Optional["Hooks"] = None,
+    component_hooks: t.Optional["HookManager"] = None,
+    command_hooks: t.Optional["HookManager"] = None,
     **kwargs: t.Any,
 ) -> bool:
     """
@@ -172,12 +169,12 @@ def dispatch_hooks(
         The hook type to dispatch.
     bot_hooks : :obj:`.hooks.Hooks`
         The bot's hooks.
-    component_hooks : Optional[:obj:`.hooks.Hooks`]
+    component_hooks : Optional[:obj:`.hooks.HookManager`]
         The component's hooks which overwrites the bot's hooks.
-    command_hooks : Optional[:obj:`.hooks.Hooks`]
+    command_hooks : Optional[:obj:`.hooks.HookManager`]
         The command's hooks which overwrites both the bot's and component's hooks. (Not relevant for non-command related
         hooks)
-    **kwargs : dict[`str`, `Any`]
+    **kwargs : `Any`
         The args to be passed into the hook callback, e.g. error= or context=
 
     Returns
@@ -204,7 +201,18 @@ async def _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, 
     return False
 
 
-class Hooks:
+class Hook:
+    """A descriptor class for hook callbacks for better management of them."""
+
+    __slots__ = ("callback", "name", "type")
+
+    def __init__(self, callback: t.Callable, name: str, type_: HookTypes) -> None:
+        self.callback = callback
+        self.name = name
+        self.type = type_
+
+
+class HookManager:
     """
     Manager class of bot, component, and command hooks. Hook are used like hikari events and allow you to call certain
     functions when certain events happen in kousen, such as when an error is raised. See :obj:`~.hooks.HookTypes` for
@@ -216,7 +224,7 @@ class Hooks:
 
     Examples
     --------
-    Adding a hook to the bot's hooks:
+    Adding a hook to the bot's hook manager:
     .. code-block:: python
         bot = kousen.Bot(...)
 
@@ -224,7 +232,7 @@ class Hooks:
         async def error_handler(error: kousen.KousenError):
             await error.context.respond("An error occurred!!!")
 
-    Adding to a component's hooks (and commands):
+    Adding to a component's and command's hook manager:
     .. code-block:: python
         component = kousen.Component(...)
 
@@ -264,12 +272,13 @@ class Hooks:
     the bot and all components and commands.
     """
 
-    __slots__ = ("_all_hooks", "_instance", "_type")
+    __slots__ = ("_type_to_hooks", "_instance", "_type", "_names_to_hooks")
 
     def __init__(
         self, instance: t.Union[Component, Bot, MessageCommand], _type: t.Literal["bot", "component", "command"]
     ):
-        self._all_hooks: dict[HookTypes, list[t.Callable]] = {}
+        self._type_to_hooks: dict[HookTypes, list[Hook]] = {}
+        self._names_to_hooks: dict[str, Hook] = {}
         self._instance: t.Union[Component, Bot, MessageCommand] = instance
         self._type: t.Literal["bot", "component", "command"] = _type
 
@@ -287,7 +296,7 @@ class Hooks:
         :obj:`bool`
             True if any hooks were dispatched, false if there were no set hooks.
         """
-        if hook_callables := self._all_hooks.get(hook_type):
+        if hook_callables := self._type_to_hooks.get(hook_type):
             for callable_ in hook_callables:
                 try:
                     await _await_if_async(callable_, *(kwargs.values()))
@@ -298,7 +307,17 @@ class Hooks:
             return True
         return False
 
-    def with_hook_callback(self, hook_type: HookTypes):
+    def remove_hook(self, hook_name) -> "HookManager":
+        if hook_name not in self._names_to_hooks:
+            _LOGGER.debug(f"Failed to remove the hook '{hook_name}' from the {self._type} instance '{self._instance}'.")
+            return self
+
+        hook = self._names_to_hooks.pop(hook_name)
+        self._type_to_hooks[hook.type].remove(hook)
+        _LOGGER.debug(f"Removed hook named '{hook_name}' from the '{self._type}' instance '{self._instance}'.")
+        return self
+
+    def with_hook_callback(self, hook_type: HookTypes, name):
         """
         A decorator that adds the decorated function to the hooks. Function can be both sync or async.
 
@@ -314,6 +333,8 @@ class Hooks:
         ----------
         hook_type : :obj:`~.hooks.HookTypes`
             The hook type associated with the function.
+        name : :obj:`str`
+            The name of the hook for easy removal of hooks.
 
         Returns
         -------
@@ -322,12 +343,12 @@ class Hooks:
         """
 
         def decorate(func: t.Callable):
-            self.add_hook_callback(hook_type, func)
+            self.add_hook_callback(hook_type, func, name)
             return func
 
         return decorate
 
-    def add_hook_callback(self, hook_type: HookTypes, callback: t.Callable[[t.Any], t.Any]) -> "Hooks":
+    def add_hook_callback(self, hook_type: HookTypes, callback: t.Callable[[t.Any], t.Any], name: str) -> "HookManager":
         """
         Add a callback hook for a hook type. See :obj:`~.hooks.HookTypes` for more information on the different types.
         Callbacks can be both sync or async.
@@ -346,6 +367,8 @@ class Hooks:
             The hook type associated with the callback.
         callback : Callable[[`Any`], `Any`]
             The callback to add to the hooks that will be called when the hook type is dispatched.
+        name : :obj:`str`
+            The name of the hook for easy removal of hooks.
 
         Returns
         -------
@@ -356,6 +379,10 @@ class Hooks:
         error_msg = f"Failed to add hook callback '{callback}' to '{self._instance}' as "
         if not isinstance(hook_type, HookTypes):
             _LOGGER.error(error_msg + f"'{hook_type}' is not a valid hook type.")
+            return self
+
+        if name in self._names_to_hooks:
+            _LOGGER.error(error_msg + f"there is already a hook named '{name}.")
             return self
 
         in_comp = hook_type.value in _component_only_hooks
@@ -371,10 +398,14 @@ class Hooks:
             _LOGGER.error(error_msg + f"it takes {params} args when 1 will be passed.")
             return self
 
-        if hook_type in self._all_hooks:
-            self._all_hooks[hook_type].append(callback)
+        hook = Hook(callback=callback, name=name, type_=hook_type)
+        self._names_to_hooks[name] = hook
+        if hook_type in self._type_to_hooks:
+            self._type_to_hooks[hook_type].append(hook)
         else:
-            self._all_hooks[hook_type] = [callback]
+            self._type_to_hooks[hook_type] = [hook]
 
-        _LOGGER.debug(f"Added '{hook_type.name}' hook callback '{callback}' to '{self._instance}'.")
+        _LOGGER.debug(
+            f"Added '{hook_type.name}' hook callback '{callback}' to '{self._instance}' with the name '{name}'."
+        )
         return self
