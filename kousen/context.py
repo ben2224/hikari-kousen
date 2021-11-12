@@ -20,41 +20,36 @@
 #  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #  SOFTWARE.
 from __future__ import annotations
-import functools
 import typing as t
 import hikari
+import abc
 
 if t.TYPE_CHECKING:
-    import datetime
-    from kousen.handler import Bot, ParserGetterType
-    from kousen.commands import MessageCommand
+    from kousen.handler import Bot
+    from kousen.commands import MessageCommand, SlashCommand
     from kousen.components import Component
 
-__all__: list[str] = ["PartialMessageContext", "MessageContext"]
+__all__: list[str] = ["Context", "MessageContext"]
 
 
-class PartialMessageContext:
+class Context(abc.ABC):
     """
-    The initial context of a message before any command has been parsed for or invoked. Mostly used for getters that
-    are needed for parsing message content, such as the prefix.
+    Abstract base class for all context types.
 
     Parameters
     ----------
     bot : :obj:~.handler.Bot`
         The instance of the bot.
-    message : :obj:`hikari.Message`
-        The message object in which the partial context relates to.
     """
 
-    __slots__ = ("_bot", "_message")
+    __slots__ = ("_bot", "_responses")
 
     def __init__(
-        self,
-        bot: Bot,
-        message: hikari.Message,
+            self,
+            bot: Bot,
     ) -> None:
         self._bot: Bot = bot
-        self._message: hikari.Message = message
+        self._responses: list[hikari.Message] = []
 
     @property
     def bot(self) -> Bot:
@@ -92,129 +87,128 @@ class PartialMessageContext:
         return self._bot.rest
 
     @property
+    @abc.abstractmethod
     def shard(self) -> t.Optional[hikari.api.GatewayShard]:
         """
-        The shard of the guild/DM that the message command was invoked in.
+        The shard of the guild/DM that the command was invoked in.
 
         Returns
         -------
         Optional[:obj:`hikari.api.GatewayShard`]
             The GatewayShard object.
         """
-        if not self._bot.shards:
-            return None
-
-        if self._message.guild_id is not None:
-            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, self._message.guild_id)
-        else:
-            shard_id = 0
-
-        return self._bot.shards[shard_id]
+        ...
 
     @property
-    def message(self) -> hikari.Message:
+    @abc.abstractmethod
+    def user(self) -> hikari.User:
         """
-        The message object that the context relates to.
-
-        Returns
-        -------
-        :obj:`hikari.Message`
-            The message object.
-        """
-        return self._message
-
-    @property
-    def content(self) -> t.Optional[str]:
-        """
-        The content of the message that the context relates to.
-
-        Returns
-        -------
-        :obj:`str`
-            The message content.
-        """
-        return self._message.content
-
-    @property
-    def author(self) -> hikari.User:
-        """
-        The author of the message that invoked the command.
+        The user who invoked the command.
 
         Returns
         -------
         :obj:`hikari.User`
-            The user object of the message author.
+            The user object of the invoking user.
         """
-        return self._message.author
+        ...
 
     @property
+    @abc.abstractmethod
     def member(self) -> t.Optional[hikari.Member]:
         """
-        The guild member of the message's author'. This will be None if the message command was invoked in a DM.
+        The guild member who invoked the command. This will be None if the command was invoked in a DM.
 
         Returns
         -------
         Optional[:obj:`hikari.Member`]
-            The member object of the author.
+            The member object of the invoking user.
         """
-        return self._message.member
+        ...
 
     @property
-    def is_human(self) -> bool:
-        """
-        Whether or not the author of the invoking message is a human. This filters out bots, webhooks and system
-        accounts.
-
-        Returns
-        -------
-        :obj:`bool`
-            Whether or not the author is a human.
-        """
-        return (
-            not self._message.author.is_system and not self._message.author.is_bot and self._message.webhook_id is None
-        )
-
-    @property
-    def created_at(self) -> datetime.datetime:
-        """
-        The time at which the invoking message was sent.
-
-        Returns
-        -------
-        :obj:`datetime.datetime`
-            A datetime object of when the message was sent.
-        """
-        return self._message.created_at
-
-    @property
+    @abc.abstractmethod
     def channel_id(self) -> hikari.Snowflake:
         """
-        The channel id of the channel that the invoking message was sent in.
+        The channel id of the channel that the command was invoked in.
 
         Returns
         -------
         :obj:`hikari.Snowflake`
             The channel id as a snowflake object.
         """
-        return self._message.channel_id
+        ...
 
     @property
+    @abc.abstractmethod
     def guild_id(self) -> t.Optional[hikari.Snowflake]:
         """
-        The guild id of the guild that the invoking message was sent in. This will be None if sent in a DM.
+        The guild id of the guild that the command was invoked in. This will be None if invoked in a DM.
 
         Returns
         -------
         Optional[:obj:`hikari.Snowflake`]
             The guild id as a snowflake object.
         """
-        return self._message.guild_id
+        ...
 
-    # todo raise not cached error?
+    @property
+    @abc.abstractmethod
+    def prefix(self) -> str:
+        """
+        The prefix the command was invoked with. This will always be a forward slash for slash commands.
+
+        Returns
+        -------
+        `str`
+            The invoking prefix.
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def invoked_with(self) -> str:
+        """
+        The name of the command used to invoke the command. For slash commands this will always be the same, but may
+        be an alias for message commands.
+
+        Returns
+        -------
+        `str`
+            The invoking command name.
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def command(self) -> t.Union[MessageCommand, SlashCommand]:
+        """
+        The command that was invoked.
+
+        Returns
+        -------
+        t.Union[:obj:`.commands.MessageCommand`, :obj:`.commands.SlashCommand`]
+            The command object.
+        """
+        ...
+
+    @property
+    @abc.abstractmethod
+    def component(self) -> Component:
+        """
+        The component that the command is added to.
+
+        Returns
+        -------
+        :obj:`.components.Component`
+            The component object.
+        """
+        ...
+
+    @abc.abstractmethod
     def get_channel(self) -> t.Optional[hikari.GuildChannel]:
         """
-        Get the channel object that the message was sent in from the cache. This will be None if the cache is disabled,
-        the message was sent in a DM or because the channel was not found in the cache.
+        Get the channel object that the command was invoked in from the cache. This will be None if the cache is disabled,
+        it was invoked in a DM or because the channel was not found in the cache.
 
         Note
         ----
@@ -223,16 +217,15 @@ class PartialMessageContext:
         Returns
         -------
         Optional[:obj:`hikari.GuildChannel`]
-            An channel object the message was sent in.
+            The channel object the command was invoked in.
         """
-        if self.channel_id is not None:
-            return self._bot.cache.get_guild_channel(self.channel_id)
-        return None
+        ...
 
+    @abc.abstractmethod
     def get_guild(self) -> t.Optional[hikari.Guild]:
         """
-        Get the guild object that the message was sent in from the cache. This will be None if the cache is disabled,
-        the message was sent in a DM or because the guild was not found in the cache.
+        Get the guild object that the command was invoked in from the cache. This will be None if the cache is disabled,
+        it was invoked in a DM or because the guild was not found in the cache.
 
         Note
         ----
@@ -241,26 +234,24 @@ class PartialMessageContext:
         Returns
         -------
         Optional[:obj:`hikari.Guild`]
-            An guild object the message was sent in.
+            The guild object the command was invoked in.
         """
-        if self.guild_id is not None:
-            return self._bot.cache.get_guild(self.guild_id)
-        return None
+        ...
 
-    # todo raise error instead of returning None?
+    @abc.abstractmethod
     async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
         """
-        Fetch the channel object that the message was sent in
+        Fetch the channel object that the command was invoked in
 
         Note
         ----
         This will perform an API call. Consider using :obj:`~.context.PartialContext.get_channel`
-        if you have the guilds cache component enabled.
+        if you have the guild channels cache component enabled.
 
         Returns
         -------
         :obj:`hikari.PartialChannel`
-            The channel object the message was sent in.
+            The channel object the command was invoked in.
 
         Raises
         ------
@@ -268,7 +259,7 @@ class PartialMessageContext:
             If you are unauthorized to make the request (invalid/missing token).
         hikari.errors.ForbiddenError
             If you are missing the `READ_MESSAGES` permission in the channel.
-        hikari.errors.NotFoundError
+        hikari.errors.NotFoundError todo doesn't atm
             If the channel is not found.
         hikari.errors.RateLimitTooLongError
             Raised in the event that a rate limit occurs that is
@@ -284,11 +275,9 @@ class PartialMessageContext:
         hikari.errors.InternalServerError
             If an internal error occurs on Discord while handling the request.
         """
-        try:
-            return await self._bot.rest.fetch_channel(self.channel_id)
-        except hikari.NotFoundError:
-            return None
+        ...
 
+    @abc.abstractmethod
     async def fetch_guild(self) -> t.Optional[hikari.RESTGuild]:
         """
         Fetch the guild object that the message was sent in
@@ -296,18 +285,18 @@ class PartialMessageContext:
         Note
         ----
         This will perform an API call. Consider using :obj:`~.context.PartialContext.get_guild`
-        if you have the guild channels cache component enabled.
+        if you have the guilds cache component enabled.
 
         Returns
         -------
         :obj:`hikari.RESTGuild`
-            The guild object the message was sent in.
+            The guild object the command was invoked in.
 
         Raises
         ------
         hikari.errors.ForbiddenError
             If you are not part of the guild.
-        hikari.errors.NotFoundError
+        hikari.errors.NotFoundError todo doesn't atm
             If the guild is not found.
         hikari.errors.UnauthorizedError
             If you are unauthorized to make the request (invalid/missing token).
@@ -325,77 +314,84 @@ class PartialMessageContext:
         hikari.errors.InternalServerError
             If an internal error occurs on Discord while handling the request.
         """
-        if self.guild_id is not None:
-            try:
-                return await self._bot.rest.fetch_guild(self.guild_id)
-            except hikari.NotFoundError:
-                return None
-        return None
+        ...
 
-    @functools.wraps(hikari.Message.respond)
+    @t.overload
+    @abc.abstractmethod
     async def respond(
-        self,
-        content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
-        *,
-        attachment: hikari.UndefinedOr[hikari.Resourceish] = hikari.UNDEFINED,
-        attachments: hikari.UndefinedOr[t.Sequence[hikari.Resourceish]] = hikari.UNDEFINED,
-        component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
-        components: hikari.UndefinedOr[t.Sequence[hikari.api.ComponentBuilder]] = hikari.UNDEFINED,
-        embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
-        embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
-        nonce: hikari.UndefinedOr[str] = hikari.UNDEFINED,
-        tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-        reply: t.Union[hikari.UndefinedType, hikari.SnowflakeishOr[hikari.PartialMessage], bool] = hikari.UNDEFINED,
-        mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-        mentions_reply: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-        user_mentions: hikari.UndefinedOr[
-            t.Union[hikari.SnowflakeishSequence[hikari.PartialUser], bool]
-        ] = hikari.UNDEFINED,
-        role_mentions: hikari.UndefinedOr[
-            t.Union[hikari.SnowflakeishSequence[hikari.PartialRole], bool]
-        ] = hikari.UNDEFINED,
-    ) -> hikari.Message:
-        """
-        An alias for :obj:`hikari.Message.respond`. See hikari's documentation for further details.
+            self,
+            content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
+            *,
+            attachment: hikari.UndefinedOr[hikari.Resourceish] = hikari.UNDEFINED,
+            attachments: hikari.UndefinedOr[t.Sequence[hikari.Resourceish]] = hikari.UNDEFINED,
+            component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
+            components: hikari.UndefinedOr[t.Sequence[hikari.api.ComponentBuilder]] = hikari.UNDEFINED,
+            embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
+            embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
+            nonce: hikari.UndefinedOr[str] = hikari.UNDEFINED,
+            tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+            reply: t.Union[hikari.UndefinedType, hikari.SnowflakeishOr[hikari.PartialMessage], bool] = hikari.UNDEFINED,
+            mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+            mentions_reply: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+            user_mentions: hikari.UndefinedOr[t.Union[hikari.SnowflakeishSequence[hikari.PartialUser], bool]] = hikari.UNDEFINED,
+            role_mentions: hikari.UndefinedOr[t.Union[hikari.SnowflakeishSequence[hikari.PartialRole], bool]] = hikari.UNDEFINED,
+    ) -> None:
+        ...
 
-        Notes
-        ----
-        If no colour is passed inside any embeds passed then :obj:`~.handler.Bot.default_embed_colour`
-        is set as the colour if available.
+    @t.overload
+    @abc.abstractmethod
+    async def respond(
+            self,
+            response_type: hikari.ResponseType,
+            content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
+            *,
+            flags: t.Union[int, hikari.MessageFlag, hikari.UndefinedType] = hikari.UNDEFINED,
+            tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+            component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
+            components: hikari.UndefinedOr[t.Sequence[hikari.api.ComponentBuilder]] = hikari.UNDEFINED,
+            embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
+            embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
+            mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+            user_mentions: hikari.UndefinedOr[
+                t.Union[hikari.SnowflakeishSequence[hikari.PartialUser], bool]] = hikari.UNDEFINED,
+            role_mentions: hikari.UndefinedOr[
+                t.Union[hikari.SnowflakeishSequence[hikari.PartialRole], bool]] = hikari.UNDEFINED,
 
-        """
-        if embed_colour := self._bot._default_embed_colour:
-            if isinstance(content, hikari.Embed):
-                if content.colour is None:
-                    content.colour = embed_colour
-            if isinstance(embed, hikari.Embed):
-                if embed.colour is None:
-                    embed.colour = embed_colour
-            if isinstance(embeds, t.Collection):
-                for emd in embeds:
-                    if isinstance(emd, hikari.Embed):
-                        if emd.colour is None:
-                            emd.colour = embed_colour
+    ) -> None:
+        ...
 
-        return await self._message.respond(
-            content=content,
-            attachment=attachment,
-            attachments=attachments,
-            component=component,
-            components=components,
-            embed=embed,
-            embeds=embeds,
-            tts=tts,
-            nonce=nonce,
-            reply=reply,
-            mentions_everyone=mentions_everyone,
-            mentions_reply=mentions_reply,
-            user_mentions=user_mentions,
-            role_mentions=role_mentions,
-        )
+    @abc.abstractmethod
+    async def respond(self, *args, **kwargs) -> None:
+        ...
+
+    async def get_initial_response(self) -> t.Optional[hikari.Message]:
+        if not self._responses:
+            return None
+        return self._responses[0]
+
+    async def get_last_response(self) -> t.Optional[hikari.Message]:
+        if not self._responses:
+            return None
+        return self._responses[-1]
+
+    async def get_all_responses(self) -> list[hikari.Message]:
+        return self._responses
+
+    async def delete_initial_response(self) -> None:
+        if not self._responses:
+            return None
+        return await self._responses[0].delete()
+
+    async def delete_last_response(self) -> None:
+        if not self._responses:
+            return None
+        return await self._responses[-1].delete()
+
+    async def delete_all_responses(self) -> None:
+        return await self._bot.rest.delete_messages(self.channel_id, self._responses)
 
 
-class MessageContext(PartialMessageContext):
+class MessageContext(Context):
     """
     The context of an invoked message command with various useful properties. For further information on message
     related properties see the hikari documentation.
@@ -404,44 +400,68 @@ class MessageContext(PartialMessageContext):
     ----------
     bot : :obj:~.handler.Bot`
         The instance of the bot.
-    message : :obj:`hikari.Message`
-        The message object in which the context relates to.
+    event : :obj:`hikari.MessageCreateEvent`
+        The message create event that the context relates to.
     prefix : :obj:`str`
         The prefix used by the user to invoke the message command
-    invoked_with : :obj:`str`
+    invoking_name : :obj:`str`
         The name of the command the user used to invoke the message command.
     command : :obj:`~.commands.MessageCommand`
         The object of the message command that was invoked by the user.
     """
 
-    __slots__ = ("_prefix", "_invoked_with", "_command", "_parser", "_raw_args")
+    __slots__ = ("_event", "_prefix", "_invoking_name", "_command")
 
     def __init__(
         self,
         bot: Bot,
-        message: hikari.Message,
+        event: hikari.MessageCreateEvent,
         *,
         prefix: str,
-        invoked_with: str,
+        invoking_name: str,
         command: MessageCommand,
     ) -> None:
-        super().__init__(bot=bot, message=message)
+        super().__init__(bot=bot)
+        self._event = event
         self._prefix: str = prefix
-        self._parser: ParserGetterType = command._custom_parser or command._global_parser
-        self._invoked_with: str = invoked_with
+        self._invoking_name: str = invoking_name
         self._command: MessageCommand = command
+
+    @property
+    def shard(self) -> t.Optional[hikari.api.GatewayShard]:
+        if not self._bot.shards:
+            return None
+
+        if self._event.guild_id is not None:
+            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, self._event.guild_id)
+        else:
+            shard_id = 0
+
+        return self._bot.shards[shard_id]
+
+    @property
+    def user(self) -> hikari.User:
+        return self._event.author
+
+    @property
+    def member(self) -> t.Optional[hikari.Member]:
+        return self._event.member
+
+    @property
+    def channel_id(self) -> hikari.Snowflake:
+        return self._event.channel_id
+
+    @property
+    def guild_id(self) -> t.Optional[hikari.Snowflake]:
+        return self._event.message.guild_id
 
     @property
     def prefix(self) -> str:
         return self._prefix
 
     @property
-    def parser(self) -> ParserGetterType:
-        return self._parser
-
-    @property
-    def invoked_with(self) -> str:
-        return self._invoked_with
+    def invoking_name(self) -> str:
+        return self._invoking_name
 
     @property
     def command(self) -> MessageCommand:
@@ -451,22 +471,162 @@ class MessageContext(PartialMessageContext):
     def component(self) -> Component:
         return self._command.component
 
-    @property
-    def raw_args(self) -> str:
-        return self.content[len(self._prefix) :]
+    # todo raise not cached error?
+    def get_channel(self) -> t.Optional[hikari.GuildChannel]:
+        if (channel_id := self._event.channel_id) is not None:
+            return self._bot.cache.get_guild_channel(channel_id)
+        return None
 
-    @classmethod
-    def _create_from_partial_context(
-        cls,
-        partial_context: PartialMessageContext,
-        prefix: str,
-        invoked_with: str,
-        command: MessageCommand,
-    ) -> "MessageContext":
-        return cls(
-            bot=partial_context._bot,
-            message=partial_context._message,
-            prefix=prefix,
-            invoked_with=invoked_with,
-            command=command,
-        )
+    def get_guild(self) -> t.Optional[hikari.Guild]:
+        if (guild_id := self._event.message.guild_id) is not None:
+            return self._bot.cache.get_guild(guild_id)
+        return None
+
+    # todo raise error instead of returning None?
+    async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
+        try:
+            return await self._bot.rest.fetch_channel(self._event.channel_id)
+        except hikari.NotFoundError:
+            return None
+
+    async def fetch_guild(self) -> t.Optional[hikari.RESTGuild]:
+        if (guild_id := self._event.message.guild_id) is not None:
+            try:
+                return await self._bot.rest.fetch_guild(guild_id)
+            except hikari.NotFoundError:
+                return None
+        return None
+
+    async def respond(self, *args: t.Any, **kwargs: t.Any) -> hikari.Message:
+        """
+        An alias for :obj:`hikari.Message.respond`. See hikari's documentation for further details.
+
+        Parameters
+        ----------
+        args : t.Any
+            Positional args for :obj:`hikari.Message.respond`. See hikari docs.
+        kwargs : t.Any
+            Keyword args for :obj:`hikari.Message.respond`. See hikari docs.
+
+        Warning
+        -------
+        Response types and flags cannot be used with messages and they will be omitted before calling
+        :obj:`hikari.Message.respond`. They can still be passed due to the integration of the message and slash
+        command interface in kousen and will work for slash commands.
+        """
+
+        if args and isinstance(args[0], hikari.ResponseType):
+            args = args[1:]
+
+        kwargs.pop("response_type")
+        kwargs.pop("flags")
+
+        msg = await self._event.message.respond(*args, **kwargs)
+        self._responses.append(msg)
+        return msg
+
+
+class SlashContext(Context):
+    """
+    The context of an invoked slash command with various useful properties. For further information on interaction
+    related properties see the hikari documentation.
+
+    Parameters
+    ----------
+    bot : :obj:~.handler.Bot`
+        The instance of the bot.
+    event : :obj:`hikari.InteractionCreateEvent`
+        The interaction create event that the context relates to.
+    command : :obj:`~.commands.SlashCommand`
+        The object of the slash command that was invoked by the user.
+    """
+
+    __slots__ = ("_event", "_prefix", "_invoked_with", "_command")
+
+    def __init__(
+        self,
+        bot: Bot,
+        event: hikari.InteractionCreateEvent,
+        *,
+        command: SlashCommand,
+    ) -> None:
+        super().__init__(bot=bot)
+        self._event: hikari.InteractionCreateEvent = event
+        assert isinstance(event.interaction, hikari.CommandInteraction)
+        self._interaction: hikari.CommandInteraction = event.interaction
+        self._prefix: str = "/"
+        self._invoked_with: str = command.name
+        self._command: SlashCommand = command
+
+    @property
+    def shard(self) -> t.Optional[hikari.api.GatewayShard]:
+        if not self._bot.shards:
+            return None
+
+        if self._interaction.guild_id is not None:
+            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, self._interaction.guild_id)
+        else:
+            shard_id = 0
+
+        return self._bot.shards[shard_id]
+
+    @property
+    def user(self) -> hikari.User:
+        return self._interaction.user
+
+    @property
+    def member(self) -> t.Optional[hikari.Member]:
+        return self._interaction.member
+
+    @property
+    def channel_id(self) -> hikari.Snowflake:
+        return self._interaction.channel_id
+
+    @property
+    def guild_id(self) -> t.Optional[hikari.Snowflake]:
+        return self._interaction.guild_id
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    @property
+    def invoked_with(self) -> str:
+        return self._invoked_with
+
+    @property
+    def command(self) -> SlashCommand:
+        return self._command
+
+    @property
+    def component(self) -> Component:
+        return self._command.component
+
+    # todo raise not cached error?
+    def get_channel(self) -> t.Optional[hikari.GuildChannel]:
+        if (channel_id := self._interaction.channel_id) is not None:
+            return self._bot.cache.get_guild_channel(channel_id)
+        return None
+
+    def get_guild(self) -> t.Optional[hikari.Guild]:
+        if (guild_id := self._interaction.guild_id) is not None:
+            return self._bot.cache.get_guild(guild_id)
+        return None
+
+    # todo raise error instead of returning None?
+    async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
+        try:
+            return await self._bot.rest.fetch_channel(self._interaction.channel_id)
+        except hikari.NotFoundError:
+            return None
+
+    async def fetch_guild(self) -> t.Optional[hikari.RESTGuild]:
+        if (guild_id := self._interaction.guild_id) is not None:
+            try:
+                return await self._bot.rest.fetch_guild(guild_id)
+            except hikari.NotFoundError:
+                return None
+        return None
+
+    async def respond(self, *args: t.Any, **kwargs: t.Any) -> hikari.Message:
+        ...  # todo
