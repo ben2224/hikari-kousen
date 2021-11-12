@@ -29,7 +29,6 @@ from kousen.commands import MessageCommand, MessageCommandGroup
 from kousen._getters import _parser_getter_maker
 
 if t.TYPE_CHECKING:
-    from kousen.context import PartialMessageContext
     from kousen.tasks import Task
     from kousen.listeners import Listener
     from kousen.handler import Bot, ParserGetterType, ParserArgType
@@ -137,7 +136,7 @@ class Component:
         ...
 
     async def _parse_content_for_command(
-        self, partial_context: PartialMessageContext, prefix: str, content: str
+        self, bot, event, prefix: str, content: str
     ) -> bool:
         name = content.split(" ", maxsplit=1)[0]
         if not (command := self.get_command(name)):
@@ -149,7 +148,7 @@ class Component:
             break
 
         args, kwargs = command._parse_content_for_args(content)
-        context = MessageContext._create_from_partial_context(partial_context, prefix, name, command)
+        context = MessageContext(bot=bot, event=event, prefix=prefix, invoked_with=name, command=command)
 
         await command.invoke(context, args, kwargs)
         return True

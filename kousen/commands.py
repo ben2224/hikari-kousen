@@ -36,6 +36,7 @@ __all__: list[str] = [
     "create_message_command",
     "MessageCommandGroup",
     "create_message_command_group",
+    "SlashCommand"
 ]
 
 
@@ -251,3 +252,7 @@ class MessageCommandGroup(MessageCommand):
     def with_command(self, command: MessageCommand) -> MessageCommand:
         self.add_command(command)
         return command
+
+
+class SlashCommand:
+    ...
