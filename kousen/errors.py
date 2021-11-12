@@ -21,9 +21,12 @@
 #  SOFTWARE.
 from __future__ import annotations
 import typing as t
+import hikari
 
 if t.TYPE_CHECKING:
-    from kousen.context import PartialMessageContext
+    from kousen.context import Context
+    from kousen.handler import Bot
+    from kousen.commands import MessageCommand
 
 __all__: list[str] = ["KousenError", "CheckError", "CommandError", "CommandNotFound"]
 
@@ -37,10 +40,12 @@ class KousenError(Exception):
 class CheckError(KousenError):
     """The base exception for all check errors."""
 
-    __slots__ = ("context",)
+    __slots__ = ("bot", "event", "command")
 
-    def __init__(self, context: PartialMessageContext) -> None:
-        self.context: PartialMessageContext = context
+    def __init__(self, bot, event, command) -> None:
+        self.bot: Bot = bot
+        self.event: hikari.MessageCreateEvent = event
+        self.command: MessageCommand = command
 
 
 class CommandError(KousenError):
@@ -48,18 +53,19 @@ class CommandError(KousenError):
 
     __slots__ = ("context", "raw_error")
 
-    def __init__(self, context: PartialMessageContext, raw_error: Exception) -> None:
-        self.context: PartialMessageContext = context
+    def __init__(self, context, raw_error) -> None:
+        self.context: Context = context
         self.raw_error: Exception = raw_error
 
 
 class CommandNotFound(KousenError):
     """Exception raised when a command could not be found by the name used."""
 
-    __slots__ = ("context", "name")
+    __slots__ = ("bot", "event", "name")
 
-    def __init__(self, context: PartialMessageContext, name: str) -> None:
-        self.context = context
+    def __init__(self, bot, event, name) -> None:
+        self.bot: Bot = bot
+        self.event: hikari.MessageCreateEvent = event
         self.name: str = name
 
 
