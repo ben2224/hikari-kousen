@@ -45,8 +45,8 @@ class Context(abc.ABC):
     __slots__ = ("_bot", "_responses")
 
     def __init__(
-            self,
-            bot: Bot,
+        self,
+        bot: Bot,
     ) -> None:
         self._bot: Bot = bot
         self._responses: list[hikari.Message] = []
@@ -166,7 +166,7 @@ class Context(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def invoked_with(self) -> str:
+    def invoking_name(self) -> str:
         """
         The name of the command used to invoke the command. For slash commands this will always be the same, but may
         be an alias for message commands.
@@ -316,52 +316,8 @@ class Context(abc.ABC):
         """
         ...
 
-    @t.overload
     @abc.abstractmethod
-    async def respond(
-            self,
-            content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
-            *,
-            attachment: hikari.UndefinedOr[hikari.Resourceish] = hikari.UNDEFINED,
-            attachments: hikari.UndefinedOr[t.Sequence[hikari.Resourceish]] = hikari.UNDEFINED,
-            component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
-            components: hikari.UndefinedOr[t.Sequence[hikari.api.ComponentBuilder]] = hikari.UNDEFINED,
-            embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
-            embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
-            nonce: hikari.UndefinedOr[str] = hikari.UNDEFINED,
-            tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-            reply: t.Union[hikari.UndefinedType, hikari.SnowflakeishOr[hikari.PartialMessage], bool] = hikari.UNDEFINED,
-            mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-            mentions_reply: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-            user_mentions: hikari.UndefinedOr[t.Union[hikari.SnowflakeishSequence[hikari.PartialUser], bool]] = hikari.UNDEFINED,
-            role_mentions: hikari.UndefinedOr[t.Union[hikari.SnowflakeishSequence[hikari.PartialRole], bool]] = hikari.UNDEFINED,
-    ) -> None:
-        ...
-
-    @t.overload
-    @abc.abstractmethod
-    async def respond(
-            self,
-            response_type: hikari.ResponseType,
-            content: hikari.UndefinedOr[t.Any] = hikari.UNDEFINED,
-            *,
-            flags: t.Union[int, hikari.MessageFlag, hikari.UndefinedType] = hikari.UNDEFINED,
-            tts: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-            component: hikari.UndefinedOr[hikari.api.ComponentBuilder] = hikari.UNDEFINED,
-            components: hikari.UndefinedOr[t.Sequence[hikari.api.ComponentBuilder]] = hikari.UNDEFINED,
-            embed: hikari.UndefinedOr[hikari.Embed] = hikari.UNDEFINED,
-            embeds: hikari.UndefinedOr[t.Sequence[hikari.Embed]] = hikari.UNDEFINED,
-            mentions_everyone: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
-            user_mentions: hikari.UndefinedOr[
-                t.Union[hikari.SnowflakeishSequence[hikari.PartialUser], bool]] = hikari.UNDEFINED,
-            role_mentions: hikari.UndefinedOr[
-                t.Union[hikari.SnowflakeishSequence[hikari.PartialRole], bool]] = hikari.UNDEFINED,
-
-    ) -> None:
-        ...
-
-    @abc.abstractmethod
-    async def respond(self, *args, **kwargs) -> None:
+    async def respond(self, *args: t.Any, **kwargs: t.Any) -> hikari.Message:
         ...
 
     async def get_initial_response(self) -> t.Optional[hikari.Message]:
@@ -432,8 +388,10 @@ class MessageContext(Context):
         if not self._bot.shards:
             return None
 
-        if self._event.guild_id is not None:
-            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, self._event.guild_id)
+        if (guild_id := self._event.message.guild_id) is not None:
+            shard_id = hikari.snowflakes.calculate_shard_id(
+                self.bot.shard_count, guild_id
+            )
         else:
             shard_id = 0
 
@@ -445,7 +403,7 @@ class MessageContext(Context):
 
     @property
     def member(self) -> t.Optional[hikari.Member]:
-        return self._event.member
+        return self._event.message.member
 
     @property
     def channel_id(self) -> hikari.Snowflake:
@@ -469,6 +427,7 @@ class MessageContext(Context):
 
     @property
     def component(self) -> Component:
+        assert self._command.component
         return self._command.component
 
     # todo raise not cached error?
@@ -541,7 +500,7 @@ class SlashContext(Context):
         The object of the slash command that was invoked by the user.
     """
 
-    __slots__ = ("_event", "_prefix", "_invoked_with", "_command")
+    __slots__ = ("_event", "_prefix", "_invoking_name", "_command")
 
     def __init__(
         self,
@@ -555,7 +514,7 @@ class SlashContext(Context):
         assert isinstance(event.interaction, hikari.CommandInteraction)
         self._interaction: hikari.CommandInteraction = event.interaction
         self._prefix: str = "/"
-        self._invoked_with: str = command.name
+        self._invoking_name: str = command.name
         self._command: SlashCommand = command
 
     @property
@@ -563,8 +522,10 @@ class SlashContext(Context):
         if not self._bot.shards:
             return None
 
-        if self._interaction.guild_id is not None:
-            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, self._interaction.guild_id)
+        if (guild_id := self._interaction.guild_id) is not None:
+            shard_id = hikari.snowflakes.calculate_shard_id(
+                self.bot.shard_count, guild_id
+            )
         else:
             shard_id = 0
 
@@ -591,8 +552,8 @@ class SlashContext(Context):
         return self._prefix
 
     @property
-    def invoked_with(self) -> str:
-        return self._invoked_with
+    def invoking_name(self) -> str:
+        return self._invoking_name
 
     @property
     def command(self) -> SlashCommand:

@@ -152,6 +152,7 @@ class HookTypes(str, Enum):
 _component_only_hooks = ("component_added", "component_removed")
 
 
+# todo fetch the return value by checking if they have types then create asyncio task, instead of waiting
 def dispatch_hooks(
     hook_type: HookTypes,
     bot_hooks: "HookManager",
@@ -183,13 +184,16 @@ def dispatch_hooks(
         True if any hooks were dispatched, false if there were no set hooks.
     """
     dispatch_future = asyncio.wait_for(
-        _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs), timeout=None
+        _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs),
+        timeout=None,
     )
     _LOGGER.debug(f"All available {hook_type} hooks were dispatched.")
     return dispatch_future.result()
 
 
-async def _dispatch_hooks(hook_type, bot_hooks, component_hooks, command_hooks, **kwargs) -> bool:
+async def _dispatch_hooks(
+    hook_type, bot_hooks, component_hooks, command_hooks, **kwargs
+) -> bool:
     if command_hooks:
         if await command_hooks.dispatch(hook_type, **kwargs):
             return True
@@ -275,7 +279,9 @@ class HookManager:
     __slots__ = ("_type_to_hooks", "_instance", "_type", "_names_to_hooks")
 
     def __init__(
-        self, instance: t.Union[Component, Bot, MessageCommand], _type: t.Literal["bot", "component", "command"]
+        self,
+        instance: t.Union[Component, Bot, MessageCommand],
+        _type: t.Literal["bot", "component", "command"],
     ):
         self._type_to_hooks: dict[HookTypes, list[Hook]] = {}
         self._names_to_hooks: dict[str, Hook] = {}
@@ -302,19 +308,24 @@ class HookManager:
                     await _await_if_async(callable_, *(kwargs.values()))
                 except Exception as ex:
                     _LOGGER.error(
-                        f"The {hook_type.name} hook callable '{callable_}' raised the exception:", exc_info=ex
+                        f"The {hook_type.name} hook callable '{callable_}' raised the exception:",
+                        exc_info=ex,
                     )
             return True
         return False
 
     def remove_hook(self, hook_name) -> "HookManager":
         if hook_name not in self._names_to_hooks:
-            _LOGGER.debug(f"Failed to remove the hook '{hook_name}' from the {self._type} instance '{self._instance}'.")
+            _LOGGER.debug(
+                f"Failed to remove the hook '{hook_name}' from the {self._type} instance '{self._instance}'."
+            )
             return self
 
         hook = self._names_to_hooks.pop(hook_name)
         self._type_to_hooks[hook.type].remove(hook)
-        _LOGGER.debug(f"Removed hook named '{hook_name}' from the '{self._type}' instance '{self._instance}'.")
+        _LOGGER.debug(
+            f"Removed hook named '{hook_name}' from the '{self._type}' instance '{self._instance}'."
+        )
         return self
 
     def with_hook_callback(self, hook_type: HookTypes, name):
@@ -348,7 +359,9 @@ class HookManager:
 
         return decorate
 
-    def add_hook_callback(self, hook_type: HookTypes, callback: t.Callable[[t.Any], t.Any], name: str) -> "HookManager":
+    def add_hook_callback(
+        self, hook_type: HookTypes, callback: t.Callable[[t.Any], t.Any], name: str
+    ) -> "HookManager":
         """
         Add a callback hook for a hook type. See :obj:`~.hooks.HookTypes` for more information on the different types.
         Callbacks can be both sync or async.
@@ -376,7 +389,9 @@ class HookManager:
             The instance of the hooks to allow for chain calls.
         """
 
-        error_msg = f"Failed to add hook callback '{callback}' to '{self._instance}' as "
+        error_msg = (
+            f"Failed to add hook callback '{callback}' to '{self._instance}' as "
+        )
         if not isinstance(hook_type, HookTypes):
             _LOGGER.error(error_msg + f"'{hook_type}' is not a valid hook type.")
             return self
@@ -387,7 +402,9 @@ class HookManager:
 
         in_comp = hook_type.value in _component_only_hooks
         if self._type == "command" and in_comp:
-            _LOGGER.error(error_msg + f"the hook type '{hook_type}' cannot be used with commands")
+            _LOGGER.error(
+                error_msg + f"the hook type '{hook_type}' cannot be used with commands"
+            )
             return self
 
         params = len(inspect.signature(callback).parameters)
