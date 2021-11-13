@@ -207,8 +207,8 @@ class Context(abc.ABC):
     @abc.abstractmethod
     def get_channel(self) -> t.Optional[hikari.GuildChannel]:
         """
-        Get the channel object that the command was invoked in from the cache. This will be None if the cache is disabled,
-        it was invoked in a DM or because the channel was not found in the cache.
+        Get the channel object that the command was invoked in from the cache. This will be `None` if the cache is
+        disabled, it was invoked in a DM or because the channel was not found in the cache.
 
         Note
         ----
@@ -224,8 +224,8 @@ class Context(abc.ABC):
     @abc.abstractmethod
     def get_guild(self) -> t.Optional[hikari.Guild]:
         """
-        Get the guild object that the command was invoked in from the cache. This will be None if the cache is disabled,
-        it was invoked in a DM or because the guild was not found in the cache.
+        Get the guild object that the command was invoked in from the cache. This will be `None` if the cache is
+        disabled, it was invoked in a DM or because the guild was not found in the cache.
 
         Note
         ----
@@ -241,7 +241,7 @@ class Context(abc.ABC):
     @abc.abstractmethod
     async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
         """
-        Fetch the channel object that the command was invoked in
+        Fetch the channel object that the command was invoked in. This will be `None` if it could not be found.
 
         Note
         ----
@@ -259,8 +259,6 @@ class Context(abc.ABC):
             If you are unauthorized to make the request (invalid/missing token).
         hikari.errors.ForbiddenError
             If you are missing the `READ_MESSAGES` permission in the channel.
-        hikari.errors.NotFoundError todo doesn't atm
-            If the channel is not found.
         hikari.errors.RateLimitTooLongError
             Raised in the event that a rate limit occurs that is
             longer than `max_rate_limit` when making a request.
@@ -280,7 +278,8 @@ class Context(abc.ABC):
     @abc.abstractmethod
     async def fetch_guild(self) -> t.Optional[hikari.RESTGuild]:
         """
-        Fetch the guild object that the message was sent in
+        Fetch the guild object that the command was invoked in. This will be `None` if used in a guild id, or the guild
+        could not be found.
 
         Note
         ----
@@ -296,8 +295,6 @@ class Context(abc.ABC):
         ------
         hikari.errors.ForbiddenError
             If you are not part of the guild.
-        hikari.errors.NotFoundError todo doesn't atm
-            If the guild is not found.
         hikari.errors.UnauthorizedError
             If you are unauthorized to make the request (invalid/missing token).
         hikari.errors.RateLimitTooLongError
@@ -349,8 +346,7 @@ class Context(abc.ABC):
 
 class MessageContext(Context):
     """
-    The context of an invoked message command with various useful properties. For further information on message
-    related properties see the hikari documentation.
+    The message command implementation of :obj:`.context.Context`.
 
     Parameters
     ----------
@@ -428,7 +424,6 @@ class MessageContext(Context):
         assert self._command.component
         return self._command.component
 
-    # todo raise not cached error?
     def get_channel(self) -> t.Optional[hikari.GuildChannel]:
         if (channel_id := self._event.channel_id) is not None:
             return self._bot.cache.get_guild_channel(channel_id)
@@ -439,7 +434,6 @@ class MessageContext(Context):
             return self._bot.cache.get_guild(guild_id)
         return None
 
-    # todo raise error instead of returning None?
     async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
         try:
             return await self._bot.rest.fetch_channel(self._event.channel_id)
@@ -485,8 +479,7 @@ class MessageContext(Context):
 
 class SlashContext(Context):
     """
-    The context of an invoked slash command with various useful properties. For further information on interaction
-    related properties see the hikari documentation.
+    The slash command implementation of :obj:`.context.Context`.
 
     Parameters
     ----------
@@ -498,7 +491,7 @@ class SlashContext(Context):
         The object of the slash command that was invoked by the user.
     """
 
-    __slots__ = ("_event", "_prefix", "_invoking_name", "_command")
+    __slots__ = ("_event", "_interaction", "_prefix", "_invoking_name", "_command")
 
     def __init__(
         self,
@@ -559,7 +552,6 @@ class SlashContext(Context):
     def component(self) -> Component:
         return self._command.component
 
-    # todo raise not cached error?
     def get_channel(self) -> t.Optional[hikari.GuildChannel]:
         if (channel_id := self._interaction.channel_id) is not None:
             return self._bot.cache.get_guild_channel(channel_id)
@@ -570,7 +562,6 @@ class SlashContext(Context):
             return self._bot.cache.get_guild(guild_id)
         return None
 
-    # todo raise error instead of returning None?
     async def fetch_channel(self) -> t.Optional[hikari.PartialChannel]:
         try:
             return await self._bot.rest.fetch_channel(self._interaction.channel_id)
