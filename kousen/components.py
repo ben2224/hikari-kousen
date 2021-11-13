@@ -64,9 +64,7 @@ class Component:
         self._hook_names_added_to_bot: list[str] = []
         self._cooldowns = None  # todo implement cooldowns
         self._bot: t.Optional[Bot] = None
-        self._custom_parser: t.Optional[ParserGetterType] = (
-            _parser_getter_maker(parser) if parser else None
-        )
+        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
         self._global_parser: t.Optional[ParserGetterType] = None
 
     def _set_bot(self, bot: t.Optional[Bot]) -> Component:
@@ -137,9 +135,7 @@ class Component:
         # Decorate a function to add it as a custom check to component
         ...
 
-    async def _parse_content_for_command(
-        self, bot, event, prefix: str, content: str
-    ) -> bool:
+    async def _parse_content_for_command(self, bot, event, prefix: str, content: str) -> bool:
         name = content.split(" ", maxsplit=1)[0]
         if not (command := self.get_command(name)):
             return False
@@ -150,9 +146,7 @@ class Component:
             break
 
         args, kwargs = command._parse_content_for_args(content)
-        context = MessageContext(
-            bot=bot, event=event, prefix=prefix, invoking_name=name, command=command
-        )
+        context = MessageContext(bot=bot, event=event, prefix=prefix, invoking_name=name, command=command)
 
         await command.invoke(context, args, kwargs)
         return True

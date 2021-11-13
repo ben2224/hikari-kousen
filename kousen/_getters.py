@@ -57,17 +57,13 @@ async def _getter_with_callback(ctx, callback, type_):
         if isinstance(getter_result, str):
             return getter_result
         else:
-            raise TypeError(
-                f"Parser getter must return a string, not type {type(getter_result)}"
-            )
+            raise TypeError(f"Parser getter must return a string, not type {type(getter_result)}")
 
     if type_ == "bool":
         if isinstance(getter_result, str):
             return getter_result
         else:
-            raise TypeError(
-                f"Bool getter must return a bool, not type {type(getter_result)}"
-            )  # todo more specific
+            raise TypeError(f"Bool getter must return a bool, not type {type(getter_result)}")  # todo more specific
 
 
 def _prefix_getter_maker(prefix: PrefixArgType) -> PrefixGetterType:
@@ -83,8 +79,7 @@ def _prefix_getter_maker(prefix: PrefixArgType) -> PrefixGetterType:
 
     else:
         raise TypeError(
-            f"Prefix must be either a string, or iterable of strings, or a coroutine, not type "
-            f"{type(prefix)}"
+            f"Prefix must be either a string, or iterable of strings, or a coroutine, not type " f"{type(prefix)}"
         )
 
 
@@ -95,9 +90,7 @@ def _bool_getter_maker(obj_: BoolArgType, name: str) -> BoolGetterType:
     elif inspect.iscoroutinefunction(obj_):
         return functools.partial(_getter_with_callback, callback=obj_, type_="bool")
     else:
-        raise TypeError(
-            f"{name} arg must be either a bool or a coroutine, not type {type(obj_)}"
-        )
+        raise TypeError(f"{name} arg must be either a bool or a coroutine, not type {type(obj_)}")
 
 
 def _parser_getter_maker(parser: ParserArgType) -> ParserGetterType:
@@ -107,6 +100,4 @@ def _parser_getter_maker(parser: ParserArgType) -> ParserGetterType:
     elif inspect.iscoroutinefunction(parser):
         return functools.partial(_getter_with_callback, callback=parser, type_="parser")
     else:
-        raise TypeError(
-            f"Parser arg must be either a string or a coroutine, not type {type(parser)}"
-        )
+        raise TypeError(f"Parser arg must be either a string or a coroutine, not type {type(parser)}")

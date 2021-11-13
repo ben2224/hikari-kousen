@@ -389,9 +389,7 @@ class MessageContext(Context):
             return None
 
         if (guild_id := self._event.message.guild_id) is not None:
-            shard_id = hikari.snowflakes.calculate_shard_id(
-                self.bot.shard_count, guild_id
-            )
+            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, guild_id)
         else:
             shard_id = 0
 
@@ -523,9 +521,7 @@ class SlashContext(Context):
             return None
 
         if (guild_id := self._interaction.guild_id) is not None:
-            shard_id = hikari.snowflakes.calculate_shard_id(
-                self.bot.shard_count, guild_id
-            )
+            shard_id = hikari.snowflakes.calculate_shard_id(self.bot.shard_count, guild_id)
         else:
             shard_id = 0
 

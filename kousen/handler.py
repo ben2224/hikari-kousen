@@ -44,13 +44,9 @@ __all__: list[str] = ["Bot", "loader", "unloader"]
 
 _LOGGER = logging.getLogger("kousen")
 
-PrefixGetterType = t.Callable[
-    ["Bot", hikari.MessageCreateEvent], t.Coroutine[None, None, list[str]]
-]
+PrefixGetterType = t.Callable[["Bot", hikari.MessageCreateEvent], t.Coroutine[None, None, list[str]]]
 ParserGetterType = t.Callable[[MessageContext], t.Coroutine[None, None, str]]
-BoolGetterType = t.Callable[
-    ["Bot", hikari.MessageCreateEvent], t.Coroutine[None, None, bool]
-]
+BoolGetterType = t.Callable[["Bot", hikari.MessageCreateEvent], t.Coroutine[None, None, bool]]
 PrefixArgType = t.Union[
     str,
     t.Iterable[str],
@@ -121,9 +117,7 @@ class Bot(hikari.GatewayBot):
             self._cache_components = hikari.CacheComponents.ALL
 
         self._mention_prefixes: list[str] = []
-        self.__mention_prefixes: list[
-            str
-        ] = []  # so i dont have to re-get/fetch the user which won't change
+        self.__mention_prefixes: list[str] = []  # so i dont have to re-get/fetch the user which won't change
         self.subscribe(hikari.StartingEvent, self._starting_event)
         self.subscribe(hikari.StartedEvent, self._setup_mention_prefixes_on_started)
         self._started = False
@@ -150,9 +144,7 @@ class Bot(hikari.GatewayBot):
             except hikari.HikariError:
                 pass
         if user:
-            if (
-                self.__mention_prefixes
-            ):  # will have an item if setup_message_commands was called before starting
+            if self.__mention_prefixes:  # will have an item if setup_message_commands was called before starting
                 self._mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
             self.__mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
         else:
@@ -219,12 +211,7 @@ class Bot(hikari.GatewayBot):
             If there is no prefix set or passed and use_mention_prefixes was set to False.
         """
 
-        if (
-            not prefix
-            and not self._prefix_getter
-            and not use_mention_prefixes
-            and not self._mention_prefixes
-        ):
+        if not prefix and not self._prefix_getter and not use_mention_prefixes and not self._mention_prefixes:
             raise ValueError(
                 "Prefix was set to None or no prefix was previously set and mention prefixes were set to "
                 "False, either a prefix must be passed or use_mention_prefixes should not be False."
@@ -234,16 +221,12 @@ class Bot(hikari.GatewayBot):
             if self._started:
                 self._mention_prefixes = self.__mention_prefixes
             else:
-                self._mention_prefixes = [
-                    ""
-                ]  # will be added on startup if this is called before bot is ran
+                self._mention_prefixes = [""]  # will be added on startup if this is called before bot is ran
         elif use_mention_prefixes is False:
             self._mention_prefixes = []
 
         if prefix is not hikari.UNDEFINED:
-            self._prefix_getter = _prefix_getter_maker(
-                prefix if prefix is not None else []
-            )
+            self._prefix_getter = _prefix_getter_maker(prefix if prefix is not None else [])
 
         if default_parser is not hikari.UNDEFINED:
             self._default_parser_getter = _parser_getter_maker(default_parser)
@@ -259,9 +242,7 @@ class Bot(hikari.GatewayBot):
             )
         else:
             if not self._case_insensitive_commands_getter:
-                self._case_insensitive_commands_getter = _bool_getter_maker(
-                    False, name="Case insensitive commands"
-                )
+                self._case_insensitive_commands_getter = _bool_getter_maker(False, name="Case insensitive commands")
 
         if case_insensitive_prefixes is not hikari.UNDEFINED:
             self._case_insensitive_prefixes_getter = _bool_getter_maker(
@@ -269,14 +250,10 @@ class Bot(hikari.GatewayBot):
             )
         else:
             if not self._case_insensitive_prefixes_getter:
-                self._case_insensitive_prefixes_getter = _bool_getter_maker(
-                    False, name="Case insensitive prefixes"
-                )
+                self._case_insensitive_prefixes_getter = _bool_getter_maker(False, name="Case insensitive prefixes")
 
         self._setup_message_commands_only(
-            message_commands_only
-            if message_commands_only is not hikari.UNDEFINED
-            else False
+            message_commands_only if message_commands_only is not hikari.UNDEFINED else False
         )
 
         self._setup_run = True
@@ -302,9 +279,7 @@ class Bot(hikari.GatewayBot):
                 elif isinstance(owner, int):
                     self._owners.append(int(owner))
                 else:
-                    raise TypeError(
-                        f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}"
-                    )
+                    raise TypeError(f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}")
         return self
 
     @property
@@ -393,9 +368,7 @@ class Bot(hikari.GatewayBot):
     def __getattr__(self, item):
         if item in self._custom_attributes:
             return self._custom_attributes[item]
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{item}'"
-        )
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
 
     def add_custom_attribute(self, name: str, attribute_value: t.Any) -> Bot:
         """
@@ -469,9 +442,7 @@ class Bot(hikari.GatewayBot):
         """
         name = str(name)
         if name not in self._custom_attributes:
-            raise ValueError(
-                f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'"
-            )
+            raise ValueError(f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'")
         self._custom_attributes[name] = new_attribute_value
         return self
 
@@ -543,9 +514,7 @@ class Bot(hikari.GatewayBot):
         for _module_path in all_module_paths:
             _module_path.replace("/", ".").strip(".")
             if _module_path in self._loaded_modules:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to load because it was already loaded."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to load because it was already loaded.")
             try:
                 _module = importlib.import_module(_module_path)
                 for _, member in inspect.getmembers(_module):
@@ -555,9 +524,7 @@ class Bot(hikari.GatewayBot):
                         _LOGGER.info(f"module {_module_path} was successfully loaded.")
                         break
                 else:
-                    _LOGGER.error(
-                        f"The module {_module_path} failed to load because no loader function was found."
-                    )
+                    _LOGGER.error(f"The module {_module_path} failed to load because no loader function was found.")
             except Exception as ex:
                 _LOGGER.error(f"The module {_module_path} failed to load.", exc_info=ex)
 
@@ -593,9 +560,7 @@ class Bot(hikari.GatewayBot):
         for _module_path in all_module_paths:
             _module_path.replace("/", ".").strip(".")
             if _module_path not in self._loaded_moduless:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to unload because it was not loaded."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to unload because it was not loaded.")
             try:
                 _module = importlib.import_module(_module_path)
                 for _, member in inspect.getmembers(_module):
@@ -603,18 +568,12 @@ class Bot(hikari.GatewayBot):
                         member(self)
                         self._loaded_moduless.remove(_module_path)
                         sys.modules.pop(_module_path)
-                        _LOGGER.info(
-                            f"module {_module_path} was successfully unloaded."
-                        )
+                        _LOGGER.info(f"module {_module_path} was successfully unloaded.")
                         break
                 else:
-                    _LOGGER.error(
-                        f"The module {_module_path} failed to unload because no unloader function was found."
-                    )
+                    _LOGGER.error(f"The module {_module_path} failed to unload because no unloader function was found.")
             except Exception as ex:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to unload.", exc_info=ex
-                )
+                _LOGGER.error(f"The module {_module_path} failed to unload.", exc_info=ex)
 
         return self
 
@@ -648,9 +607,7 @@ class Bot(hikari.GatewayBot):
 
         for _module_path in all_module_paths:
             if _module_path not in self._loaded_moduless:
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload because it was not loaded."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload because it was not loaded.")
             old_module = sys.modules.pop(_module_path)
             try:
                 module = importlib.import_module(_module_path)
@@ -672,19 +629,13 @@ class Bot(hikari.GatewayBot):
 
             except _MissingUnload:
                 sys.modules[_module_path] = old_module
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload because no unloader function was found."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload because no unloader function was found.")
             except _MissingLoad:
                 sys.modules[_module_path] = old_module
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload because no loader function was found."
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload because no loader function was found.")
             except Exception as ex:
                 sys.modules[_module_path] = old_module
-                _LOGGER.error(
-                    f"The module {_module_path} failed to reload.", exc_info=ex
-                )
+                _LOGGER.error(f"The module {_module_path} failed to reload.", exc_info=ex)
 
         return self
 

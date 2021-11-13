@@ -60,9 +60,7 @@ def create_message_command_group(
     parser: t.Optional[str] = None,
 ) -> t.Callable[[t.Callable], "MessageCommandGroup"]:
     def decorate(func: t.Callable):
-        cmd = MessageCommandGroup(
-            callback=func, name=name, aliases=aliases, parser=parser
-        )
+        cmd = MessageCommandGroup(callback=func, name=name, aliases=aliases, parser=parser)
         return cmd
 
     return decorate
@@ -95,9 +93,7 @@ class MessageCommand:
         if aliases:
             self._aliases.extend(list(*map(str, aliases)))
         self._parent: t.Optional[MessageCommandGroup] = None
-        self._custom_parser: t.Optional[ParserGetterType] = (
-            _parser_getter_maker(parser) if parser else None
-        )
+        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
         self._global_parser: t.Optional[ParserGetterType] = None
         self._component: t.Optional[Component] = None
         self._checks: list = []
@@ -165,9 +161,7 @@ class MessageCommand:
     def component(self) -> t.Optional[Component]:
         return self._component
 
-    def _parse_content_for_args(
-        self, content: str
-    ) -> tuple[tuple[t.Any], dict[str, t.Any]]:
+    def _parse_content_for_args(self, content: str) -> tuple[tuple[t.Any], dict[str, t.Any]]:
         return parse_content_for_args(self, content)
 
     async def invoke(self, context, args, kwargs):
@@ -239,9 +233,7 @@ class MessageCommandGroup(MessageCommand):
 
     def add_command(self, command: MessageCommand) -> MessageCommandGroup:
         if command.name in self._names_to_commands:
-            raise ValueError(
-                f"Cannot add command {command.name} as there is already a sub-command by that name."
-            )
+            raise ValueError(f"Cannot add command {command.name} as there is already a sub-command by that name.")
 
         self._names_to_commands[command._name] = command
         self._aliases_to_commands[command._name] = command
