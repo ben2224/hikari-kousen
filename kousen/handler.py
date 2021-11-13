@@ -97,16 +97,23 @@ class Bot(hikari.GatewayBot):
         "_mention_prefixes",
         "__mention_prefixes",
         "_started",
-        "_setup_run",
+        "_msg_setup_run",
+        "_slash_setup_run",
         "_prefix_getter",
         "_default_parser_getter",
         "_case_insensitive_commands_getter",
         "_case_insensitive_prefixes_getter",
+        "_default_enabled_guilds",
+        "_delete_unbound_commands",
+        "_delete_commands_when_message_only",
+        "_delete_commands_when_closing",
         "_owners",
         "_custom_attributes",
         "_loaded_modules",
         "_names_to_components",
         "_hooks",
+        "_message_commands_only",
+        "_slash_commands_only",
     )
 
     def __init__(self, *args, **kwargs) -> None:
@@ -119,15 +126,22 @@ class Bot(hikari.GatewayBot):
         self._mention_prefixes: list[str] = []
         self.__mention_prefixes: list[str] = []  # so i dont have to re-get/fetch the user which won't change
         self.subscribe(hikari.StartingEvent, self._starting_event)
-        self.subscribe(hikari.StartedEvent, self._setup_mention_prefixes_on_started)
+        self.subscribe(hikari.StartedEvent, self._setup_on_started)
         self._started = False
-        self._setup_run = False
+        self._msg_setup_run = False
+        self._slash_setup_run = False
         self.subscribe(hikari.MessageCreateEvent, self.on_message_create)
+        self.subscribe(hikari.InteractionCreateEvent, self.on_interaction_create)
 
         self._prefix_getter: PrefixGetterType = NotImplemented
         self._default_parser_getter: ParserGetterType = NotImplemented
         self._case_insensitive_commands_getter: BoolGetterType = NotImplemented
         self._case_insensitive_prefixes_getter: BoolGetterType = NotImplemented
+
+        self._default_enabled_guilds: t.Iterable[t.Union[hikari.PartialGuild, int]] = []
+        self._delete_unbound_commands: bool = True
+        self._delete_commands_when_message_only: bool = True
+        self._delete_commands_when_closing: bool = True
 
         self._owners: list[int] = []
         self._custom_attributes: dict[str, t.Any] = {}
@@ -135,7 +149,10 @@ class Bot(hikari.GatewayBot):
         self._names_to_components: dict[str, Component] = {}
         self._hooks: HookManager = HookManager(self, "bot")
 
-    async def _setup_mention_prefixes_on_started(self, _) -> None:
+        self._message_commands_only: bool = False
+        self._slash_commands_only: bool = False
+
+    async def _setup_on_started(self, _) -> None:
         user = self.get_me()
         if user is None:
             try:
@@ -149,11 +166,16 @@ class Bot(hikari.GatewayBot):
             self.__mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
         else:
             ...  # todo raise logger error
+
+        if self._delete_unbound_commands:
+            ...  # todo delete unbound slash commands
+
         self._started = True
 
     async def _starting_event(self, _) -> None:
-        if not self._setup_run:
+        if not self._msg_setup_run:
             self.setup_message_commands()
+        if not self._slash_setup_run:
             self.setup_slash_commands()
 
     def setup_message_commands(
@@ -168,8 +190,9 @@ class Bot(hikari.GatewayBot):
     ) -> Bot:
         """
         Setup a custom configuration for message commands. This will be called automatically if it was not called
-        before the bot was started, therefore using the default config. If a custom config is needed, this should
-        be called before starting/running the bot. However, this can be run at any time to change the config.
+        before the bot was started, therefore using the default config (see defaults below). If a custom
+        config is needed, this should be called before starting/running the bot. However, this can
+        be run at any time to change the config.
 
         For slash command configuration see :obj:`~.handler.Bot.setup_slash_commands`.
 
@@ -197,8 +220,9 @@ class Bot(hikari.GatewayBot):
             Whether or not prefixes should be handled as case-insensitive or not.
             Defaults to `False`.
         message_commands_only : `bool`
-            Whether or not the bot should be message commands only. This can be set at any time and will unregister
-            and delete any existing slash commands. Note that this can be overwritten by setting slash commands only.
+            Whether or not the bot should be message commands only. This can be set at any time and will prevent slash
+            commands from working. Note that this can be overwritten by setting slash commands only to `True`.
+            Defaults to `False`.
 
         Returns
         -------
@@ -210,6 +234,13 @@ class Bot(hikari.GatewayBot):
         ValueError
             If there is no prefix set or passed and use_mention_prefixes was set to False.
         """
+
+        if message_commands_only is not hikari.UNDEFINED:
+            self._message_commands_only = bool(message_commands_only)
+            if message_commands_only:
+                self._slash_commands_only = False
+                if self._delete_commands_when_message_only:
+                    ...  # todo delete all slash commands
 
         if not prefix and not self._prefix_getter and not use_mention_prefixes and not self._mention_prefixes:
             raise ValueError(
@@ -252,34 +283,110 @@ class Bot(hikari.GatewayBot):
             if not self._case_insensitive_prefixes_getter:
                 self._case_insensitive_prefixes_getter = _bool_getter_maker(False, name="Case insensitive prefixes")
 
-        self._setup_message_commands_only(
-            message_commands_only if message_commands_only is not hikari.UNDEFINED else False
-        )
-
-        self._setup_run = True
+        self._msg_setup_run = True
         return self
 
-    def setup_slash_commands(self):
-        ...
+    def setup_slash_commands(
+        self,
+        *,
+        default_enabled_guilds: hikari.UndefinedOr[t.Iterable[t.Union[hikari.PartialGuild, int]]] = hikari.UNDEFINED,
+        delete_unbound_commands: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+        delete_commands_when_message_only: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+        delete_commands_when_closing: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+        slash_commands_only: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
+    ) -> Bot:
+        """
+        Setup a custom configuration for slash commands. This will be called automatically if it was not called
+        before the bot was started, therefore using the default config (see defaults below). If a custom config
+        is needed, this should be called before starting/running the bot. However, this can
+        be run at any time to change the config.
 
-    def _setup_message_commands_only(self, make_only: bool):
-        ...  # todo
+        For message command configuration see :obj:`~.handler.Bot.setup_message_commands`.
 
-    def _setup_slash_commands_only(self):
-        ...
+        Parameters
+        ----------
+        default_enabled_guilds : :obj:`hikari.snowflakes.SnowflakeSequence`
+            The guilds/guild ids that slash commands should be declared in, if not provided then slash commands will be
+            declared globally and work in all guilds. This is useful for testing/development as it may take up to
+            and hour to propagate global slash commands, but guild specific commands will propagate instantly.
+        delete_unbound_commands : `bool`
+            Whether or not the bot should delete slash commands from discord that are not bound to the bot instance.
+            This applies to existing commands on startup, as well as commands that are removed when unloading modules.
+            If set to False, these commands will lead to the interaction failing when users use the commands.
+            Defaults to `True`.
+        delete_commands_when_message_only : `bool`
+            Whether or not the bot should delete slash commands from discord when the bot is set to message commands
+            only (i.e. They are deleted when message_commands_only is set to `True` in
+            :obj:`.handler.Bot.setup_message_commands`). Defaults to `True`.
+        delete_commands_when_closing : `bool`
+            Whether or not the bot should delete slash commands from discord when the bot closing. Defaults to `True`.
+        slash_commands_only : `bool`
+            Whether or not the bot should be slash commands only. This can be set at any time and will prevent message
+            commands from working. Note that this can be overwritten by setting message commands only to `True`.
+            Defaults to `False`.
 
-    def set_owners(self, owners: t.Iterable[t.Union[hikari.User, int]]) -> Bot:
-        if not isinstance(owners, t.Iterable):
-            raise TypeError(f"Owners must be an iterable, not type {type(owners)}")
+        Returns
+        -------
+        :obj:`Bot`
+            The instance of the bot to allow for chained calls.
+
+        Raises
+        ------
+        TypeError
+            Incorrect type for default enabled guilds is passed.
+        """
+
+        if slash_commands_only is not hikari.UNDEFINED:
+            self._slash_commands_only = bool(slash_commands_only)
+            if slash_commands_only:
+                self._message_commands_only = False
+
+        if default_enabled_guilds is hikari.UNDEFINED:
+            self._default_enabled_guilds = []
+        elif not isinstance(default_enabled_guilds, t.Iterable):
+            raise TypeError(f"Enabled guilds must be an iterable, not type {type(default_enabled_guilds)}")
         else:
-            self._owners.clear()
-            for owner in owners:
-                if isinstance(owner, hikari.User):
-                    self._owners.append(int(owner.id))
+            enabled_guilds = []
+            for guild in default_enabled_guilds:
+                if isinstance(guild, hikari.PartialGuild):
+                    enabled_guilds.append(int(guild.id))
+                elif isinstance(guild, int):
+                    enabled_guilds.append(guild)
+                else:
+                    raise TypeError(
+                        f"Enabled guilds must be an iterable of guilds or integers, not of type {type(guild)}"
+                    )
+            self._default_enabled_guilds = enabled_guilds
+
+        if delete_unbound_commands is not hikari.UNDEFINED:
+            self._delete_unbound_commands = bool(delete_unbound_commands)
+            if self._started:
+                ...  # todo delete unbound slash commands
+
+        if delete_commands_when_message_only is not hikari.UNDEFINED:
+            self._delete_commands_when_message_only = bool(delete_commands_when_message_only)
+            if self._message_commands_only:
+                ...  # todo delete all slash commands
+
+        if delete_commands_when_closing is not hikari.UNDEFINED:
+            self._delete_commands_when_closing = bool(delete_commands_when_closing)
+
+        self._slash_setup_run = True
+        return self
+
+    def set_owners(self, owners_: t.Iterable[t.Union[hikari.PartialUser, int]]) -> Bot:
+        if not isinstance(owners_, t.Iterable):
+            raise TypeError(f"Owners must be an iterable, not type {type(owners_)}")
+        else:
+            owners = []
+            for owner in owners_:
+                if isinstance(owner, hikari.PartialUser):
+                    owners.append(int(owner.id))
                 elif isinstance(owner, int):
-                    self._owners.append(int(owner))
+                    owners.append(int(owner))
                 else:
                     raise TypeError(f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}")
+                self._owners = owners
         return self
 
     @property
@@ -330,7 +437,16 @@ class Bot(hikari.GatewayBot):
         """
         return self._hooks
 
-    async def on_message_create(self, event: hikari.MessageCreateEvent):
+    async def on_interaction_create(self, event: hikari.InteractionCreateEvent) -> None:
+        if self._message_commands_only:
+            return
+
+        ...
+
+    async def on_message_create(self, event: hikari.MessageCreateEvent) -> None:
+        if self._slash_commands_only:
+            return
+
         if event.content is None:
             return
 
@@ -642,7 +758,7 @@ class Bot(hikari.GatewayBot):
     def add_all_components_in_file(self):
         ...  # todo parse file for component and add to bot
 
-    def add_component(self, component: Component) -> Bot:
+    def add_component(self, component: Component) -> Bot:  # todo check if component is slash/msg command only compliant
         if component in self._names_to_components.values():
             return self  # todo raise error
 
