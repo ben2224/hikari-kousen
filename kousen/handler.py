@@ -138,11 +138,14 @@ class Bot(hikari.GatewayBot):
     async def _setup_mention_prefixes_on_started(self, _) -> None:
         user = self.get_me()
         if user is None:
-            user = await self.rest.fetch_my_user()
-            # todo implement backoff with fetch
-        self.__mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
-        if self.__mention_prefixes:
+            try:
+                user = await self.rest.fetch_my_user()
+                # todo implement backoff with fetch
+            except hikari.HikariError:
+                pass  # along with backoff, log that mention prefixes failed
+        if self.__mention_prefixes:  # will have an item if setup_message_commands was called before starting
             self._mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
+        self.__mention_prefixes = [f"<@{user.id}>", f"<@!{user.id}>"]
         self._started = True
 
     async def _starting_event(self, _) -> None:
