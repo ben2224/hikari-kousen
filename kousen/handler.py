@@ -27,12 +27,10 @@ import inspect
 import importlib
 import hikari
 
-from kousen.context import MessageContext
 from kousen.errors import _MissingLoad, _MissingUnload, CommandNotFound
 from kousen.hooks import dispatch_hooks, HookManager, HookTypes
 from kousen._getters import (
     _bool_getter_maker,
-    _parser_getter_maker,
     _prefix_getter_maker,
 )
 
@@ -45,7 +43,6 @@ __all__: list[str] = ["Bot", "loader", "unloader"]
 _LOGGER = logging.getLogger("kousen")
 
 PrefixGetterType = t.Callable[["Bot", hikari.MessageCreateEvent], t.Coroutine[None, None, list[str]]]
-ParserGetterType = t.Callable[[MessageContext], t.Coroutine[None, None, str]]
 BoolGetterType = t.Callable[["Bot", hikari.MessageCreateEvent], t.Coroutine[None, None, bool]]
 PrefixArgType = t.Union[
     str,
@@ -55,7 +52,6 @@ PrefixArgType = t.Union[
         t.Coroutine[None, None, t.Union[str, t.Iterable[str]]],
     ],
 ]
-ParserArgType = t.Union[str, ParserGetterType]
 BoolArgType = t.Union[bool, BoolGetterType]
 
 
@@ -134,7 +130,6 @@ class Bot(hikari.GatewayBot):
         self.subscribe(hikari.InteractionCreateEvent, self.on_interaction_create)
 
         self._prefix_getter: PrefixGetterType = NotImplemented
-        self._default_parser_getter: ParserGetterType = NotImplemented
         self._case_insensitive_commands_getter: BoolGetterType = NotImplemented
         self._case_insensitive_prefixes_getter: BoolGetterType = NotImplemented
 
@@ -183,7 +178,6 @@ class Bot(hikari.GatewayBot):
         *,
         use_mention_prefixes: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
         prefix: hikari.UndefinedOr[t.Optional[PrefixArgType]] = hikari.UNDEFINED,
-        default_parser: hikari.UndefinedOr[ParserArgType] = hikari.UNDEFINED,
         case_insensitive_commands: hikari.UndefinedOr[BoolArgType] = hikari.UNDEFINED,
         case_insensitive_prefixes: hikari.UndefinedOr[BoolArgType] = hikari.UNDEFINED,
         message_commands_only: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
@@ -210,10 +204,6 @@ class Bot(hikari.GatewayBot):
             Whether or not the bot's mention will be used as a message command prefix. Defaults to `True`.
         prefix : Optional[:obj:`~.handler.PrefixArgType`]
             The bot's message command prefix.
-        default_parser : :obj:`~.handler.ParserArgType`
-            The default parser to use for parsing message content for message command arguments. Defaults to a
-            whitespace. (Note that regardless of this parser, commands and subcommands should always be seperated
-            by a whitespace, as this option only affects argument parsing.)
         case_insensitive_commands : :obj:`~.handler.BoolArgType`
             Whether or not commands should be case-insensitive or not. Defaults to `False`.
         case_insensitive_prefixes : :obj:`~.handler.BoolArgType`
@@ -258,14 +248,6 @@ class Bot(hikari.GatewayBot):
 
         if prefix is not hikari.UNDEFINED:
             self._prefix_getter = _prefix_getter_maker(prefix if prefix is not None else [])
-
-        if default_parser is not hikari.UNDEFINED:
-            self._default_parser_getter = _parser_getter_maker(default_parser)
-        else:
-            if not self._default_parser_getter:
-                self._default_parser_getter = _parser_getter_maker(" ")
-        for component in self._names_to_components.values():
-            component._set_parser(self._default_parser_getter)
 
         if case_insensitive_commands is not hikari.UNDEFINED:
             self._case_insensitive_commands_getter = _bool_getter_maker(
@@ -764,7 +746,6 @@ class Bot(hikari.GatewayBot):
 
         self._names_to_components[component._name] = component
         component._set_bot(self)
-        component._set_parser(self._default_parser_getter)
 
         if self._is_alive:
             dispatch_hooks(

@@ -25,12 +25,18 @@ import typing as t
 if t.TYPE_CHECKING:
     ...
 
-__all__: list[str] = ["parse_content_for_args"]
+__all__: list[str] = ["with_slash_parser", "with_option"]
 
 
-def parse_content_for_args(command, content: str) -> tuple[tuple[t.Any], dict[str, t.Any]]:
+def with_slash_parser():
     ...
 
 
-def with_argument(converter, *, keyword: t.Optional[str] = None, default: t.Optional[t.Any] = None):
+def with_option(name: str,
+                description: str,
+                *,
+                option_type,
+                converter=None,
+                keyword_name: t.Optional[str] = None,
+                default: t.Optional[t.Any] = None):
     ...

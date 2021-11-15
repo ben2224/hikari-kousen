@@ -30,8 +30,6 @@ if t.TYPE_CHECKING:
         PrefixGetterType,
         BoolArgType,
         BoolGetterType,
-        ParserArgType,
-        ParserGetterType,
     )
 
 
@@ -52,12 +50,6 @@ async def _getter_with_callback(ctx, callback, type_):
             raise TypeError(
                 f"Prefix getter must return a string or iterable of strings, not type {type(getter_result)}"
             )  # todo use log error
-
-    if type_ == "parser":
-        if isinstance(getter_result, str):
-            return getter_result
-        else:
-            raise TypeError(f"Parser getter must return a string, not type {type(getter_result)}")
 
     if type_ == "bool":
         if isinstance(getter_result, str):
@@ -91,13 +83,3 @@ def _bool_getter_maker(obj_: BoolArgType, name: str) -> BoolGetterType:
         return functools.partial(_getter_with_callback, callback=obj_, type_="bool")
     else:
         raise TypeError(f"{name} arg must be either a bool or a coroutine, not type {type(obj_)}")
-
-
-def _parser_getter_maker(parser: ParserArgType) -> ParserGetterType:
-    if isinstance(parser, str):
-        return functools.partial(_getter, return_object=parser)
-
-    elif inspect.iscoroutinefunction(parser):
-        return functools.partial(_getter_with_callback, callback=parser, type_="parser")
-    else:
-        raise TypeError(f"Parser arg must be either a string or a coroutine, not type {type(parser)}")

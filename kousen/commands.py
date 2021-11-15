@@ -24,12 +24,9 @@ import typing as t
 
 from kousen.hooks import HookManager, dispatch_hooks, HookTypes
 from kousen.errors import CheckError, CommandError
-from kousen._getters import _parser_getter_maker
-from kousen.parsing import parse_content_for_args
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
-    from kousen.handler import ParserGetterType, ParserArgType
 
 __all__: list[str] = [
     "MessageCommand",
@@ -66,14 +63,21 @@ def create_message_command_group(
     return decorate
 
 
+def as_message_command():
+    ...
+
+
+def as_slash_commands():
+    ...
+
+
 class MessageCommand:
     __slots__ = (
         "_callback",
         "_name",
         "_aliases",
         "_parent",
-        "_global_parser",
-        "_custom_parser",
+        "_parser",
         "_component",
         "_checks",
         "_hooks",
@@ -85,7 +89,6 @@ class MessageCommand:
         callback,
         name: str,
         aliases: t.Optional[t.Iterable[str]] = None,
-        parser: t.Optional[ParserArgType] = None,
     ) -> None:
         self._callback = callback
         self._name: str = name
@@ -93,18 +96,13 @@ class MessageCommand:
         if aliases:
             self._aliases.extend(list(*map(str, aliases)))
         self._parent: t.Optional[MessageCommandGroup] = None
-        self._custom_parser: t.Optional[ParserGetterType] = _parser_getter_maker(parser) if parser else None
-        self._global_parser: t.Optional[ParserGetterType] = None
+        self._parser = NotImplemented  # TODO tbd
         self._component: t.Optional[Component] = None
         self._checks: list = []
         self._hooks: HookManager = HookManager(self, "command")
 
     def _set_parent(self, parent: t.Optional[MessageCommandGroup]) -> MessageCommand:
         self._parent = parent
-        return self
-
-    def _set_parser(self, parser: t.Optional[ParserGetterType]) -> MessageCommand:
-        self._global_parser = parser
         return self
 
     def _set_component(self, component: Component) -> MessageCommand:
@@ -142,10 +140,6 @@ class MessageCommand:
         return self._parent is not None
 
     @property
-    def parser(self) -> t.Optional[ParserGetterType]:
-        return self._custom_parser or self._global_parser
-
-    @property
     def checks(self):
         return self._checks
 
@@ -160,9 +154,6 @@ class MessageCommand:
     @property
     def component(self) -> t.Optional[Component]:
         return self._component
-
-    def _parse_content_for_args(self, content: str) -> tuple[tuple[t.Any], dict[str, t.Any]]:
-        return parse_content_for_args(self, content)
 
     async def invoke(self, context, args, kwargs):
         comp = self._component
@@ -206,17 +197,10 @@ class MessageCommandGroup(MessageCommand):
         callback,
         name: str,
         aliases: t.Optional[t.Iterable[str]] = None,
-        parser: t.Optional[ParserArgType] = None,
     ) -> None:
-        super().__init__(callback=callback, name=name, aliases=aliases, parser=parser)
+        super().__init__(callback=callback, name=name, aliases=aliases)
         self._names_to_commands: dict[str, MessageCommand] = {}
         self._aliases_to_commands: dict[str, MessageCommand] = {}
-
-    def _set_parser(self, parser: t.Optional[ParserGetterType]) -> MessageCommand:
-        self._global_parser = parser
-        for command in self._names_to_commands.values():
-            command._set_parser(parser)
-        return self
 
     def _set_component(self, component: Component) -> MessageCommand:
         self._component = component
@@ -243,10 +227,6 @@ class MessageCommandGroup(MessageCommand):
         command._set_parent(self)
         if self._component:
             command._set_component(self._component)
-        if self._custom_parser:
-            command._set_parser(self._custom_parser)
-        elif self._global_parser:
-            command._set_parser(self._global_parser)
         return self
 
     def with_command(self, command: MessageCommand) -> MessageCommand:
