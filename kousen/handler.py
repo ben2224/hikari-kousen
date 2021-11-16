@@ -29,14 +29,15 @@ import hikari
 
 from kousen.errors import _MissingLoad, _MissingUnload, CommandNotFound
 from kousen.hooks import dispatch_hooks, HookManager, HookTypes
+from kousen.context import MessageContext, SlashContext
 from kousen._getters import (
     _bool_getter_maker,
     _prefix_getter_maker,
 )
 
-
 if t.TYPE_CHECKING:
     from kousen.components import Component
+    from kousen.commands import CommandGroup, SubCommandGroup, BaseCommand
 
 __all__: list[str] = ["Bot", "loader", "unloader"]
 
@@ -452,15 +453,24 @@ class Bot(hikari.GatewayBot):
         if not (content := content[len(prefix) :].lstrip()):
             return
 
+        name = content.split(" ", maxsplit=1)[0]
         for component in self._names_to_components.values():
-            if await component._parse_content_for_command(self, event, prefix, content):
-                return
+            command: t.Any
+            if command := component.get_command(name):
+                while isinstance(command, (CommandGroup, SubCommandGroup)):
+                    if cmd := command.get_subcommand(new_name := name.split(" ", maxsplit=1)[0]):
+                        name = new_name
+                        command = cmd
+                        break
+                assert isinstance(command, BaseCommand)
+                args, kwargs = NotImplemented  # TODO tbd
+                context = MessageContext(bot=self, event=event, prefix=prefix, invoking_name=name, command=command)
 
-        dispatch_hooks(
-            HookTypes.ERROR,
-            self._hooks,
-            error=CommandNotFound(self, event, content.split(" ", maxsplit=1)[0]),
-        )
+                await command.message_invoke(context, args, kwargs)
+
+        else:
+            dispatch_hooks(HookTypes.ERROR, self._hooks, error=CommandNotFound(self, event, name))
+
         return
 
     def __getattr__(self, item):

@@ -21,63 +21,77 @@
 #  SOFTWARE.
 from __future__ import annotations
 import typing as t
+import re
+import hikari
 
 from kousen.hooks import HookManager, dispatch_hooks, HookTypes
 from kousen.errors import CheckError, CommandError
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
+    from kousen.context import MessageContext, SlashContext, Context
 
 __all__: list[str] = [
-    "MessageCommand",
-    "create_message_command",
-    "MessageCommandGroup",
-    "create_message_command_group",
-    "SlashCommand",
+    "as_command",
+    "create_command_group",
+    "as_subcommand",
+    "create_subcommand_group",
+    "Command",
+    "CommandGroup",
+    "SubCommand",
+    "SubCommandGroup",
+    "CommandType",
+    "SubCommandType",
+    "CommandGroupType",
 ]
 
 
-def create_message_command(
-    name: str,
-    *,
-    aliases: t.Optional[t.Iterable[str]] = None,
-    parser: t.Optional[str] = None,
-):
-    def decorate(func):
-        cmd = MessageCommand(callback=func, name=name, aliases=aliases, parser=parser)
-        return cmd
-
-    return decorate
-
-
-def create_message_command_group(
-    name: str,
-    *,
-    aliases: t.Optional[t.Iterable[str]] = None,
-    parser: t.Optional[str] = None,
-) -> t.Callable[[t.Callable], "MessageCommandGroup"]:
+def as_command(
+    name: str, description: str, *, message_only: bool = False, slash_only: bool = False
+) -> t.Callable[[t.Callable], "Command"]:
     def decorate(func: t.Callable):
-        cmd = MessageCommandGroup(callback=func, name=name, aliases=aliases, parser=parser)
+        cmd = Command(
+            callback=func,
+            name=str(name),
+            description=str(description),
+            slash_only=slash_only,
+            message_only=message_only,
+        )
         return cmd
 
     return decorate
 
 
-def as_message_command():
-    ...
+def create_command_group(
+    name: str, description: str, *, message_only: bool = False, slash_only: bool = False
+) -> "CommandGroup":
+    return CommandGroup(
+        callback=NotImplemented,
+        name=str(name),
+        description=str(description),
+        slash_only=slash_only,
+        message_only=message_only,
+    )
 
 
-def as_slash_commands():
-    ...
+def as_subcommand(name: str, description: str) -> t.Callable[[t.Callable], "SubCommand"]:
+    def decorate(func: t.Callable):
+        cmd = SubCommand(callback=func, name=str(name), description=str(description))
+        return cmd
+
+    return decorate
 
 
-class MessageCommand:
+def create_subcommand_group(name: str, description: str) -> "SubCommandGroup":
+    return SubCommandGroup(callback=NotImplemented, name=str(name), description=str(description))
+
+
+class BaseCommand:
+
     __slots__ = (
         "_callback",
         "_name",
-        "_aliases",
-        "_parent",
-        "_parser",
+        "_description",
         "_component",
         "_checks",
         "_hooks",
@@ -86,58 +100,40 @@ class MessageCommand:
     def __init__(
         self,
         *,
-        callback,
+        callback: t.Callable[[Context, t.Any], t.Coroutine],
         name: str,
-        aliases: t.Optional[t.Iterable[str]] = None,
+        description: str,
     ) -> None:
-        self._callback = callback
+        if not re.match(r"^[a-z0-9_-]{1,32}$", str(name)):
+            raise  # todo log error
+        if len(description) > 100:
+            raise  # todo log error
+        self._callback: t.Callable[[Context, t.Any], t.Coroutine] = callback
         self._name: str = name
-        self._aliases: list[str] = []
-        if aliases:
-            self._aliases.extend(list(*map(str, aliases)))
-        self._parent: t.Optional[MessageCommandGroup] = None
-        self._parser = NotImplemented  # TODO tbd
+        self._description = description
         self._component: t.Optional[Component] = None
-        self._checks: list = []
+        self._checks = NotImplemented  # todo
         self._hooks: HookManager = HookManager(self, "command")
 
-    def _set_parent(self, parent: t.Optional[MessageCommandGroup]) -> MessageCommand:
-        self._parent = parent
-        return self
-
-    def _set_component(self, component: Component) -> MessageCommand:
+    def _set_component(self, component: Component) -> BaseCommand:
         self._component = component
         return self
 
     @property
-    def callback(self):
+    def callback(self) -> t.Callable[[Context, t.Any], t.Coroutine]:
         return self._callback
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
     @property
-    def full_name(self):
-        full_name = []
-        cmd = self
-        while cmd is not None:
-            full_name.append(cmd._name)
-            cmd = cmd._parent
-        full_name.reverse()
-        return " ".join(full_name)
+    def full_name(self) -> str:
+        return self._name
 
     @property
-    def aliases(self) -> list[str]:
-        return self._aliases
-
-    @property
-    def parent(self) -> t.Optional[MessageCommandGroup]:
-        return self._parent
-
-    @property
-    def is_subcommand(self) -> bool:
-        return self._parent is not None
+    def description(self) -> str:
+        return self._description
 
     @property
     def checks(self):
@@ -148,15 +144,47 @@ class MessageCommand:
         return self._hooks
 
     @property
-    def cooldown(self):
-        return None  # todo impl
-
-    @property
     def component(self) -> t.Optional[Component]:
         return self._component
 
-    async def invoke(self, context, args, kwargs):
+    async def slash_invoke(self, context: SlashContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
+
+    async def message_invoke(self, context: MessageContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
+
+
+class Command(BaseCommand):
+
+    __slots__ = ("_parser", "_slash_parser", "_impl_message", "_impl_slash", "_app_command")
+
+    def __init__(
+        self,
+        *,
+        callback: t.Callable[[Context, t.Any], t.Coroutine],
+        name: str,
+        description: str,
+        message_only: bool,
+        slash_only: bool,
+    ) -> None:
+        super().__init__(callback=callback, name=name, description=description)
+        if message_only and slash_only:
+            raise  # todo log error
+        self._impl_message = False if slash_only else True
+        self._impl_slash = False if message_only else True
+
+        self._parser = NotImplemented  # TODO tbd
+        self._slash_parser = NotImplemented  # TODO tbd
+        self._app_command: t.Optional[hikari.Command] = None
+
+    async def slash_invoke(self, context: SlashContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
+
+    async def message_invoke(self, context: MessageContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        assert self._component is not None
+        assert self._component._bot is not None
         comp = self._component
+        bot = self._component._bot
         # todo cooldowns
         try:
             ...
@@ -164,7 +192,7 @@ class MessageCommand:
         except CheckError as ex:
             if dispatch_hooks(
                 HookTypes.CHECK_ERROR,
-                comp._bot._hooks,
+                bot._hooks,
                 component_hooks=comp._hooks,
                 command_hooks=self._hooks,
                 error=ex,
@@ -178,7 +206,7 @@ class MessageCommand:
             exp = CommandError(context, ex)
             if dispatch_hooks(
                 HookTypes.ERROR,
-                comp._bot._hooks,
+                bot._hooks,
                 component_hooks=comp._hooks,
                 command_hooks=self._hooks,
                 error=exp,
@@ -188,51 +216,174 @@ class MessageCommand:
                 raise exp  # todo use logger error instead of raise
 
 
-class MessageCommandGroup(MessageCommand):
-    __slots__ = ("_names_to_commands", "_aliases_to_commands")
+class CommandGroup(BaseCommand):
+
+    __slots__ = ("_impl_message", "_impl_slash", "_names_to_subcommands", "_app_command")
 
     def __init__(
         self,
         *,
-        callback,
+        callback: t.Callable[[Context, t.Any], t.Coroutine],
         name: str,
-        aliases: t.Optional[t.Iterable[str]] = None,
+        description: str,
+        message_only: bool,
+        slash_only: bool,
     ) -> None:
-        super().__init__(callback=callback, name=name, aliases=aliases)
-        self._names_to_commands: dict[str, MessageCommand] = {}
-        self._aliases_to_commands: dict[str, MessageCommand] = {}
+        super().__init__(callback=callback, name=name, description=description)
+        if message_only and slash_only:
+            raise  # todo log error
+        self._impl_message = False if slash_only else True
+        self._impl_slash = False if message_only else True
+        self._names_to_subcommands: dict[str, SubCommandType] = {}
+        self._app_command: t.Optional[hikari.Command] = None
 
-    def _set_component(self, component: Component) -> MessageCommand:
+    def _set_component(self, component: Component) -> CommandGroup:
         self._component = component
-        for command in self._names_to_commands.values():
+        for command in self._names_to_subcommands.values():
             command._set_component(component)
         return self
 
-    def get_command(self, name_or_alias) -> t.Optional[MessageCommand]:
-        return self._aliases_to_commands.get(name_or_alias, None)
+    def get_subcommand(self, name_or_alias) -> t.Optional[SubCommandType]:
+        return self._names_to_subcommands.get(name_or_alias, None)
 
-    def walk_sub_commands(self) -> t.Iterator[MessageCommand]:
-        for command in self._names_to_commands.values():
+    def walk_subcommands(self) -> t.Iterator[SubCommandType]:
+        for command in self._names_to_subcommands.values():
             yield command
 
-    def add_command(self, command: MessageCommand) -> MessageCommandGroup:
-        if command.name in self._names_to_commands:
+    def add_subcommand(self, command: SubCommandType) -> CommandGroup:
+        if command.name in self._names_to_subcommands:
             raise ValueError(f"Cannot add command {command.name} as there is already a sub-command by that name.")
 
-        self._names_to_commands[command._name] = command
-        self._aliases_to_commands[command._name] = command
-        for alias in command._aliases:
-            self._aliases_to_commands[alias] = command
+        self._names_to_subcommands[command._name] = command
 
-        command._set_parent(self)
+        command._parent = self
         if self._component:
             command._set_component(self._component)
         return self
 
-    def with_command(self, command: MessageCommand) -> MessageCommand:
-        self.add_command(command)
-        return command
+    def with_subcommand(self, command: SubCommandType) -> None:
+        self.add_subcommand(command)
+        return
+
+    def with_message_callback(self, func) -> CommandGroup:
+        self._callback = func
+        return self
+
+    async def message_invoke(self, context: MessageContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
 
 
-class SlashCommand:
-    ...
+class SubCommand(BaseCommand):
+
+    __slots__ = (
+        "_parent",
+        "_parser",
+        "_slash_parser",
+    )
+
+    def __init__(
+        self,
+        *,
+        callback: t.Callable[[Context, t.Any], t.Coroutine],
+        name: str,
+        description: str,
+    ) -> None:
+        super().__init__(callback=callback, name=name, description=description)
+
+        self._parent: CommandGroupType = NotImplemented
+        self._parser = NotImplemented  # TODO tbd
+        self._slash_parser = NotImplemented  # TODO tbd
+
+    @property
+    def full_name(self) -> str:
+        full_name = []
+        cmd: t.Any = self
+        while not isinstance(cmd, CommandGroup):
+            full_name.append(cmd._name)
+            cmd = cmd._parent
+        full_name.reverse()
+        return " ".join(full_name)
+
+    @property
+    def parent(self) -> CommandGroupType:
+        return self._parent
+
+    async def slash_invoke(self, context: SlashContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
+
+    async def message_invoke(self, context: MessageContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
+
+
+class SubCommandGroup(BaseCommand):
+
+    __slots__ = (
+        "_parent",
+        "_names_to_subcommands",
+    )
+
+    def __init__(
+        self,
+        *,
+        callback: t.Callable[[Context, t.Any], t.Coroutine],
+        name: str,
+        description: str,
+    ) -> None:
+        super().__init__(callback=callback, name=name, description=description)
+
+        self._parent: CommandGroupType = NotImplemented
+        self._names_to_subcommands: dict[str, SubCommandType] = {}
+
+    def _set_component(self, component: Component) -> SubCommandGroup:
+        self._component = component
+        for command in self._names_to_subcommands.values():
+            command._set_component(component)
+        return self
+
+    def get_subcommand(self, name_or_alias) -> t.Optional[SubCommandType]:
+        return self._names_to_subcommands.get(name_or_alias, None)
+
+    def walk_subcommands(self) -> t.Iterator[SubCommandType]:
+        for command in self._names_to_subcommands.values():
+            yield command
+
+    def add_subcommand(self, command: SubCommandType) -> SubCommandGroup:
+        if command.name in self._names_to_subcommands:
+            raise ValueError(f"Cannot add command {command.name} as there is already a sub-command by that name.")
+
+        self._names_to_subcommands[command._name] = command
+
+        command._parent = self
+        if self._component:
+            command._set_component(self._component)
+        return self
+
+    def with_subcommand(self, command: SubCommandType) -> None:
+        self.add_subcommand(command)
+        return None
+
+    def with_message_callback(self, func) -> SubCommandGroup:
+        self._callback = func
+        return self
+
+    @property
+    def full_name(self) -> str:
+        full_name = []
+        cmd: t.Any = self
+        while not isinstance(cmd, CommandGroup):
+            full_name.append(cmd._name)
+            cmd = cmd._parent
+        full_name.reverse()
+        return " ".join(full_name)
+
+    @property
+    def parent(self) -> CommandGroupType:
+        return self._parent
+
+    async def message_invoke(self, context: MessageContext, args: tuple[t.Any], kwargs: dict[str, t.Any]):
+        ...
+
+
+CommandType = t.Union[Command, CommandGroup]
+SubCommandType = t.Union[SubCommand, SubCommandGroup]
+CommandGroupType = t.Union[SubCommandGroup, CommandGroup]

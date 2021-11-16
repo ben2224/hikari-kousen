@@ -26,7 +26,7 @@ import abc
 
 if t.TYPE_CHECKING:
     from kousen.handler import Bot
-    from kousen.commands import Command
+    from kousen.commands import BaseCommand
     from kousen.components import Component
 
 __all__: list[str] = ["Context", "MessageContext"]
@@ -44,14 +44,10 @@ class Context(abc.ABC):
 
     __slots__ = ("_bot", "_responses", "_command")
 
-    def __init__(
-        self,
-        bot: Bot,
-        command: Command
-    ) -> None:
+    def __init__(self, bot: Bot, command: BaseCommand) -> None:
         self._bot: Bot = bot
         self._responses: list[hikari.Message] = []
-        self._command: Command = command
+        self._command: BaseCommand = command
 
     @property
     def bot(self) -> Bot:
@@ -89,13 +85,13 @@ class Context(abc.ABC):
         return self._bot.rest
 
     @property
-    def command(self) -> Command:
+    def command(self) -> BaseCommand:
         """
         The command that was invoked.
 
         Returns
         -------
-        :obj:`.commands.Command`
+        :obj:`.commands.BaseCommand`
             The command object.
         """
         return self._command
@@ -363,7 +359,11 @@ class MessageContext(Context):
         The object of the message command that was invoked by the user.
     """
 
-    __slots__ = ("_event", "_prefix", "_invoking_name",)
+    __slots__ = (
+        "_event",
+        "_prefix",
+        "_invoking_name",
+    )
 
     def __init__(
         self,
@@ -372,7 +372,7 @@ class MessageContext(Context):
         *,
         prefix: str,
         invoking_name: str,
-        command: Command,
+        command: BaseCommand,
     ) -> None:
         super().__init__(bot=bot, command=command)
         self._event = event
@@ -482,14 +482,19 @@ class SlashContext(Context):
         The object of the command that was invoked by the user.
     """
 
-    __slots__ = ("_event", "_interaction", "_prefix", "_invoking_name",)
+    __slots__ = (
+        "_event",
+        "_interaction",
+        "_prefix",
+        "_invoking_name",
+    )
 
     def __init__(
         self,
         bot: Bot,
         event: hikari.InteractionCreateEvent,
         *,
-        command: Command,
+        command: BaseCommand,
     ) -> None:
         super().__init__(bot=bot, command=command)
         self._event: hikari.InteractionCreateEvent = event

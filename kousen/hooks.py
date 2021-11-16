@@ -31,7 +31,7 @@ from kousen.utils import _await_if_async
 if t.TYPE_CHECKING:
     from kousen.handler import Bot
     from kousen.components import Component
-    from kousen.commands import MessageCommand
+    from kousen.commands import Command
 
 __all__: list[str] = ["HookTypes", "Hook", "HookManager"]
 
@@ -278,12 +278,12 @@ class HookManager:
 
     def __init__(
         self,
-        instance: t.Union[Component, Bot, MessageCommand],
+        instance: t.Union[Component, Bot, Command],
         _type: t.Literal["bot", "component", "command"],
     ):
         self._type_to_hooks: dict[HookTypes, list[Hook]] = {}
         self._names_to_hooks: dict[str, Hook] = {}
-        self._instance: t.Union[Component, Bot, MessageCommand] = instance
+        self._instance: t.Union[Component, Bot, Command] = instance
         self._type: t.Literal["bot", "component", "command"] = _type
 
     async def dispatch(self, hook_type: HookTypes, **kwargs) -> bool:

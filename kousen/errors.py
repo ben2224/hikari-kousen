@@ -26,7 +26,7 @@ import hikari
 if t.TYPE_CHECKING:
     from kousen.context import Context
     from kousen.handler import Bot
-    from kousen.commands import MessageCommand
+    from kousen.commands import BaseCommand
 
 __all__: list[str] = ["KousenError", "CheckError", "CommandError", "CommandNotFound"]
 
@@ -45,7 +45,7 @@ class CheckError(KousenError):
     def __init__(self, bot, event, command) -> None:
         self.bot: Bot = bot
         self.event: hikari.MessageCreateEvent = event
-        self.command: MessageCommand = command
+        self.command: BaseCommand = command
 
 
 class CommandError(KousenError):

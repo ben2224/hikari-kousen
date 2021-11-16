@@ -32,11 +32,13 @@ def with_slash_parser():
     ...
 
 
-def with_option(name: str,
-                description: str,
-                *,
-                option_type,
-                converter=None,
-                keyword_name: t.Optional[str] = None,
-                default: t.Optional[t.Any] = None):
+def with_option(
+    name: str,
+    description: str,
+    *,
+    option_type,
+    converter=None,
+    keyword_name: t.Optional[str] = None,
+    default: t.Optional[t.Any] = None
+):
     ...
