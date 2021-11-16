@@ -26,7 +26,7 @@ import abc
 
 if t.TYPE_CHECKING:
     from kousen.handler import Bot
-    from kousen.commands import MessageCommand, SlashCommand
+    from kousen.commands import Command
     from kousen.components import Component
 
 __all__: list[str] = ["Context", "MessageContext"]
@@ -42,14 +42,16 @@ class Context(abc.ABC):
         The instance of the bot.
     """
 
-    __slots__ = ("_bot", "_responses")
+    __slots__ = ("_bot", "_responses", "_command")
 
     def __init__(
         self,
         bot: Bot,
+        command: Command
     ) -> None:
         self._bot: Bot = bot
         self._responses: list[hikari.Message] = []
+        self._command: Command = command
 
     @property
     def bot(self) -> Bot:
@@ -85,6 +87,31 @@ class Context(abc.ABC):
             The Hikari REST client..
         """
         return self._bot.rest
+
+    @property
+    def command(self) -> Command:
+        """
+        The command that was invoked.
+
+        Returns
+        -------
+        :obj:`.commands.Command`
+            The command object.
+        """
+        return self._command
+
+    @property
+    def component(self) -> Component:
+        """
+        The component that the command is added to.
+
+        Returns
+        -------
+        :obj:`.components.Component`
+            The component object.
+        """
+        assert self._command._component
+        return self._command._component
 
     @property
     @abc.abstractmethod
@@ -175,32 +202,6 @@ class Context(abc.ABC):
         -------
         `str`
             The invoking command name.
-        """
-        ...
-
-    @property
-    @abc.abstractmethod
-    def command(self) -> t.Union[MessageCommand, SlashCommand]:
-        """
-        The command that was invoked.
-
-        Returns
-        -------
-        t.Union[:obj:`.commands.MessageCommand`, :obj:`.commands.SlashCommand`]
-            The command object.
-        """
-        ...
-
-    @property
-    @abc.abstractmethod
-    def component(self) -> Component:
-        """
-        The component that the command is added to.
-
-        Returns
-        -------
-        :obj:`.components.Component`
-            The component object.
         """
         ...
 
@@ -358,11 +359,11 @@ class MessageContext(Context):
         The prefix used by the user to invoke the message command
     invoking_name : :obj:`str`
         The name of the command the user used to invoke the message command.
-    command : :obj:`~.commands.MessageCommand`
+    command : :obj:`~.commands.Command`
         The object of the message command that was invoked by the user.
     """
 
-    __slots__ = ("_event", "_prefix", "_invoking_name", "_command")
+    __slots__ = ("_event", "_prefix", "_invoking_name",)
 
     def __init__(
         self,
@@ -371,13 +372,12 @@ class MessageContext(Context):
         *,
         prefix: str,
         invoking_name: str,
-        command: MessageCommand,
+        command: Command,
     ) -> None:
-        super().__init__(bot=bot)
+        super().__init__(bot=bot, command=command)
         self._event = event
         self._prefix: str = prefix
         self._invoking_name: str = invoking_name
-        self._command: MessageCommand = command
 
     @property
     def shard(self) -> t.Optional[hikari.api.GatewayShard]:
@@ -414,15 +414,6 @@ class MessageContext(Context):
     @property
     def invoking_name(self) -> str:
         return self._invoking_name
-
-    @property
-    def command(self) -> MessageCommand:
-        return self._command
-
-    @property
-    def component(self) -> Component:
-        assert self._command.component
-        return self._command.component
 
     def get_channel(self) -> t.Optional[hikari.GuildChannel]:
         if (channel_id := self._event.channel_id) is not None:
@@ -487,26 +478,25 @@ class SlashContext(Context):
         The instance of the bot.
     event : :obj:`hikari.InteractionCreateEvent`
         The interaction create event that the context relates to.
-    command : :obj:`~.commands.SlashCommand`
-        The object of the slash command that was invoked by the user.
+    command : :obj:`~.commands.Command`
+        The object of the command that was invoked by the user.
     """
 
-    __slots__ = ("_event", "_interaction", "_prefix", "_invoking_name", "_command")
+    __slots__ = ("_event", "_interaction", "_prefix", "_invoking_name",)
 
     def __init__(
         self,
         bot: Bot,
         event: hikari.InteractionCreateEvent,
         *,
-        command: SlashCommand,
+        command: Command,
     ) -> None:
-        super().__init__(bot=bot)
+        super().__init__(bot=bot, command=command)
         self._event: hikari.InteractionCreateEvent = event
         assert isinstance(event.interaction, hikari.CommandInteraction)
         self._interaction: hikari.CommandInteraction = event.interaction
         self._prefix: str = "/"
         self._invoking_name: str = command.name
-        self._command: SlashCommand = command
 
     @property
     def shard(self) -> t.Optional[hikari.api.GatewayShard]:
@@ -543,14 +533,6 @@ class SlashContext(Context):
     @property
     def invoking_name(self) -> str:
         return self._invoking_name
-
-    @property
-    def command(self) -> SlashCommand:
-        return self._command
-
-    @property
-    def component(self) -> Component:
-        return self._command.component
 
     def get_channel(self) -> t.Optional[hikari.GuildChannel]:
         if (channel_id := self._interaction.channel_id) is not None:
