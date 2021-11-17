@@ -464,9 +464,15 @@ class Bot(hikari.GatewayBot):
                         break
                 assert isinstance(command, BaseCommand)
                 args, kwargs = NotImplemented  # TODO tbd
-                context = MessageContext(bot=self, event=event, prefix=prefix, invoking_name=name, command=command)
+                context = MessageContext(
+                    bot=self,
+                    event=event,
+                    prefix=prefix,
+                    invoking_name=name,
+                    command=command,
+                )
 
-                await command.message_invoke(context, args, kwargs)
+                await command.invoke(context, args, kwargs)
 
         else:
             dispatch_hooks(HookTypes.ERROR, self._hooks, error=CommandNotFound(self, event, name))
