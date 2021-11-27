@@ -294,13 +294,14 @@ class Bot(hikari.GatewayBot):
             and hour to propagate global slash commands, but guild specific commands will propagate instantly.
         delete_unbound_commands : `bool`
             Whether or not the bot should delete slash commands from discord that are not bound to the bot instance.
-            This applies to existing commands on startup, as well as commands that are removed when unloading modules.
-            If set to False, these commands will lead to the interaction failing when users use the commands.
-            Defaults to `True`.
+            This applies to existing commands on startup, as well as commands that are removed when removing components.
+            If set to `False`, these commands will lead to the interaction failing when users use the commands.
+            Defaults to `True`. (Note that the creation and deletion of commands from the api can be suppressed
+            when adding/removing components, if say, you're only testing the message commands.)
         delete_commands_when_message_only : `bool`
             Whether or not the bot should delete slash commands from discord when the bot is set to message commands
-            only (i.e. They are deleted when message_commands_only is set to `True` in
-            :obj:`.handler.Bot.setup_message_commands`). Defaults to `True`.
+            only, else an interaction failure will occur for users. (i.e. They are deleted when message_commands_only
+            is set to `True` in :obj:`.handler.Bot.setup_message_commands`). Defaults to `True`.
         delete_commands_when_closing : `bool`
             Whether or not the bot should delete slash commands from discord when the bot closing. Defaults to `True`.
         slash_commands_only : `bool`
@@ -756,13 +757,13 @@ class Bot(hikari.GatewayBot):
     def add_all_components_in_file(self):
         ...  # todo parse file for component and add to bot
 
-    def add_component(self, component: Component) -> Bot:  # todo check if component is slash/msg command only compliant
+    def add_component(self, component: Component, create_slash_commands: bool = True) -> Bot:
         if component in self._names_to_components.values():
             return self  # todo raise error
 
         self._names_to_components[component._name] = component
         component._set_bot(self)
-
+        # todo create slash commands
         if self._is_alive:
             dispatch_hooks(
                 HookTypes.COMPONENT_ADDED,
@@ -772,14 +773,14 @@ class Bot(hikari.GatewayBot):
 
         return self
 
-    def remove_component(self, component_name: str) -> Bot:
+    def remove_component(self, component_name: str, delete_slash_commands: bool = True) -> Bot:
         if component_name not in self._names_to_components:
             return self  # todo raise error
 
         component = self._names_to_components.pop(component_name)
         for hook_name in component._hook_names_added_to_bot:
             self._hooks.remove_hook(hook_name)
-
+        # todo delete slash commands
         if self._is_alive:
             dispatch_hooks(
                 HookTypes.COMPONENT_ADDED,
