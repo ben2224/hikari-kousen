@@ -28,7 +28,8 @@ from kousen.hooks import HookManager
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
-    from kousen.context import Context, MessageContext
+    from kousen.context import Context
+    from kousen.parsing import ParserManager
 
 __all__: list[str] = [
     "as_command",
@@ -45,9 +46,7 @@ __all__: list[str] = [
 ]
 
 
-def as_command(
-    name: str, description: str, *, message_only: bool = False, slash_only: bool = False
-) -> t.Callable[[t.Callable], "Command"]:
+def as_command(name: str, description: str, *, message_only: bool = False, slash_only: bool = False, use_slash_parser: bool = False) -> t.Callable[[t.Callable], "Command"]:
     def decorate(func: t.Callable):
         cmd = Command(
             callback=func,
@@ -55,6 +54,7 @@ def as_command(
             description=str(description),
             slash_only=slash_only,
             message_only=message_only,
+            use_slash_parser=use_slash_parser
         )
         return cmd
 
@@ -73,9 +73,9 @@ def create_command_group(
     )
 
 
-def as_subcommand(name: str, description: str) -> t.Callable[[t.Callable], "SubCommand"]:
+def as_subcommand(name: str, description: str, use_slash_parser: bool = False) -> t.Callable[[t.Callable], "SubCommand"]:
     def decorate(func: t.Callable):
-        cmd = SubCommand(callback=func, name=str(name), description=str(description))
+        cmd = SubCommand(callback=func, name=str(name), description=str(description), use_slash_parser=use_slash_parser)
         return cmd
 
     return decorate
@@ -92,9 +92,9 @@ class BaseCommand:
         "_name",
         "_description",
         "_component",
-        "_checks",
-        "_hooks",
-        "_message_parser",
+        "_check_manager",
+        "_hook_manager",
+        "_parser",
     )
 
     def __init__(
@@ -106,15 +106,15 @@ class BaseCommand:
     ) -> None:
         if not re.match(r"^[a-z0-9_-]{1,32}$", str(name)):
             raise  # todo log error
-        if len(description) > 100:
+        if len(description) > 100 or len(description) < 1:
             raise  # todo log error
         self._callback: t.Callable[[Context, t.Any], t.Coroutine] = callback
         self._name: str = name
         self._description = description
         self._component: t.Optional[Component] = None
-        self._checks = NotImplemented  # todo
-        self._hooks: HookManager = HookManager(self, "command")
-        self._message_parser: t.Optional[t.Any] = None  # todo
+        self._check_manager = NotImplemented  # todo
+        self._hook_manager: HookManager = NotImplemented
+        self._parser: ParserManager = ParserManager()
 
     def _set_component(self, component: Component) -> BaseCommand:
         self._component = component
@@ -137,12 +137,12 @@ class BaseCommand:
         return self._description
 
     @property
-    def checks(self):
-        return self._checks
+    def check_manager(self):
+        return self._check_manager
 
     @property
-    def hooks(self) -> HookManager:
-        return self._hooks
+    def hook_manager(self) -> HookManager:
+        return self._hook_manager
 
     @property
     def component(self) -> t.Optional[Component]:
@@ -154,7 +154,7 @@ class BaseCommand:
 
 class Command(BaseCommand):
 
-    __slots__ = ("_slash_parser", "_impl_message", "_impl_slash", "_app_command")
+    __slots__ = ("_impl_message", "_impl_slash", "_use_slash_parser", "_app_command")
 
     def __init__(
         self,
@@ -164,6 +164,7 @@ class Command(BaseCommand):
         description: str,
         message_only: bool,
         slash_only: bool,
+        use_slash_parser: bool = False
     ) -> None:
         super().__init__(callback=callback, name=name, description=description)
         if message_only and slash_only:
@@ -171,7 +172,7 @@ class Command(BaseCommand):
         self._impl_message = False if slash_only else True
         self._impl_slash = False if message_only else True
 
-        self._slash_parser = NotImplemented  # TODO tbd
+        self._use_slash_parser = use_slash_parser
         self._app_command: t.Optional[hikari.Command] = None
 
     async def invoke(self, context: Context, args: tuple[t.Any], kwargs: dict[str, t.Any]):
@@ -210,8 +211,8 @@ class CommandGroup(BaseCommand):
             command._set_component(component)
         return self
 
-    def get_subcommand(self, name_or_alias) -> t.Optional[SubCommandType]:
-        return self._names_to_subcommands.get(name_or_alias, None)
+    def get_subcommand(self, name) -> t.Optional[SubCommandType]:
+        return self._names_to_subcommands.get(name, None)
 
     def walk_subcommands(self) -> t.Iterator[SubCommandType]:
         for command in self._names_to_subcommands.values():
@@ -234,7 +235,6 @@ class CommandGroup(BaseCommand):
 
     def with_message_callback(self, func) -> CommandGroup:
         self._callback = func
-        # todo set message parser
         return self
 
     async def invoke(self, context: Context, args: tuple[t.Any], kwargs: dict[str, t.Any]):
@@ -245,7 +245,7 @@ class SubCommand(BaseCommand):
 
     __slots__ = (
         "_parent",
-        "_slash_parser",
+        "_use_slash_parser"
     )
 
     def __init__(
@@ -254,11 +254,12 @@ class SubCommand(BaseCommand):
         callback: t.Callable[[Context, t.Any], t.Coroutine],
         name: str,
         description: str,
+        use_slash_parser: bool = False
     ) -> None:
         super().__init__(callback=callback, name=name, description=description)
 
         self._parent: CommandGroupType = NotImplemented
-        self._slash_parser = NotImplemented  # TODO tbd
+        self._use_slash_parser = use_slash_parser
 
     @property
     def full_name(self) -> str:
@@ -303,8 +304,8 @@ class SubCommandGroup(BaseCommand):
             command._set_component(component)
         return self
 
-    def get_subcommand(self, name_or_alias) -> t.Optional[SubCommand]:
-        return self._names_to_subcommands.get(name_or_alias, None)
+    def get_subcommand(self, name) -> t.Optional[SubCommand]:
+        return self._names_to_subcommands.get(name, None)
 
     def walk_subcommands(self) -> t.Iterator[SubCommand]:
         for command in self._names_to_subcommands.values():
@@ -323,11 +324,10 @@ class SubCommandGroup(BaseCommand):
 
     def with_subcommand(self, command: SubCommand) -> None:
         self.add_subcommand(command)
-        return None
+        return
 
     def with_message_callback(self, func) -> SubCommandGroup:
         self._callback = func
-        # todo set message parser
         return self
 
     @property
