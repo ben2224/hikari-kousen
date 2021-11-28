@@ -528,6 +528,8 @@ class Bot(hikari.GatewayBot):
             If there is already an existing attribute or method by that name.
         """
         name = str(name)
+        if not name.isidentifier():
+            raise ValueError(f"Cannot add the bot attribute '{name}', as it is not a valid identifier.")
         if name in self._custom_attributes or getattr(self, name, None):
             raise ValueError(f"There is already a bot attribute '{name}'")
         self._custom_attributes[name] = attribute_value
@@ -764,12 +766,6 @@ class Bot(hikari.GatewayBot):
         self._names_to_components[component._name] = component
         component._set_bot(self)
         # todo create slash commands
-        if self._is_alive:
-            dispatch_hooks(
-                HookTypes.COMPONENT_ADDED,
-                bot_hooks=self._hooks,
-                component_hooks=component._hooks,
-            )
 
         return self
 
@@ -781,12 +777,7 @@ class Bot(hikari.GatewayBot):
         for hook_name in component._hook_names_added_to_bot:
             self._hooks.remove_hook(hook_name)
         # todo delete slash commands
-        if self._is_alive:
-            dispatch_hooks(
-                HookTypes.COMPONENT_ADDED,
-                bot_hooks=self._hooks,
-                component_hooks=component._hooks,
-            )
+
         component._set_bot(None)
 
         return self
