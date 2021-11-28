@@ -23,13 +23,16 @@ from __future__ import annotations
 import typing as t
 import re
 import hikari
+import abc
 
 from kousen.hooks import HookManager
+from kousen.parsing import ParserManager
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
     from kousen.context import Context
-    from kousen.parsing import ParserManager
+    from kousen.checks import CheckManager
+    from kousen.cooldowns import CooldownManager
 
 __all__: list[str] = [
     "as_command",
@@ -85,13 +88,14 @@ def create_subcommand_group(name: str, description: str) -> "SubCommandGroup":
     return SubCommandGroup(callback=NotImplemented, name=str(name), description=str(description))
 
 
-class BaseCommand:
+class BaseCommand(abc.ABC):
 
     __slots__ = (
         "_callback",
         "_name",
         "_description",
         "_component",
+        "_cooldown_manager",
         "_check_manager",
         "_hook_manager",
         "_parser",
@@ -112,8 +116,9 @@ class BaseCommand:
         self._name: str = name
         self._description = description
         self._component: t.Optional[Component] = None
-        self._check_manager = NotImplemented  # todo
-        self._hook_manager: HookManager = NotImplemented
+        self._cooldown_manager: t.Optional[CooldownManager] = None
+        self._check_manager: t.Optional[CheckManager] = None
+        self._hook_manager: HookManager = HookManager(self, "command")
         self._parser: ParserManager = ParserManager()
 
     def _set_component(self, component: Component) -> BaseCommand:
@@ -137,17 +142,14 @@ class BaseCommand:
         return self._description
 
     @property
-    def check_manager(self):
-        return self._check_manager
-
-    @property
-    def hook_manager(self) -> HookManager:
-        return self._hook_manager
-
-    @property
     def component(self) -> t.Optional[Component]:
         return self._component
 
+    @property
+    def hooks(self) -> HookManager:
+        return self._hook_manager
+
+    @abc.abstractmethod
     async def invoke(self, context: Context, args: tuple[t.Any], kwargs: dict[str, t.Any]):
         ...
 

@@ -59,6 +59,10 @@ class Component:
         self._hook_names_added_to_bot: list[str] = []
         self._bot: t.Optional[Bot] = None
 
+    @property
+    def hooks(self) -> HookManager:
+        return self._hooks
+
     def _set_bot(self, bot: t.Optional[Bot]) -> Component:
         self._bot = bot
         return self

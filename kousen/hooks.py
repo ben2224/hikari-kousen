@@ -23,7 +23,6 @@ from __future__ import annotations
 import typing as t
 import asyncio
 import logging
-import inspect
 from hikari.internal.enums import Enum
 
 from kousen.utils import _await_if_async
@@ -31,7 +30,7 @@ from kousen.utils import _await_if_async
 if t.TYPE_CHECKING:
     from kousen.handler import Bot
     from kousen.components import Component
-    from kousen.commands import Command
+    from kousen.commands import BaseCommand
 
 __all__: list[str] = ["HookTypes", "Hook", "HookManager"]
 
@@ -61,16 +60,6 @@ class HookTypes(str, Enum):
     ----------
     error : :obj:`~.errors.KousenError`
         The error that was raised, all errors have access to the context and therefore the bot instance.
-    """
-
-    CHECK_ERROR = "check_error"
-    """
-    A specific error hook dispatched when checks for a command fail.
-    
-    Parameters
-    ----------
-    error : :obj:`~.errors.CheckError`
-        The check error that was raised, all check errors have access to the context and therefore the bot instance.
     """
 
     PRE_INVOKE = "pre_invoke"
@@ -114,43 +103,6 @@ class HookTypes(str, Enum):
         The context of the message and command.
     """
 
-    COMPONENT_ADDED = "component_added"
-    """
-    Dispatched when a component is added to the bot. The bot hook will be dispatched for all components, 
-    or the hook of the component added will be dispatched if set.
-    
-    Warning
-    ----
-    This will not be dispatched if the bot has not yet been started.
-    
-    Parameters
-    ----------
-    component : :obj:`~.component.Component`
-        The component added.
-    bot : :obj:`~.handler.Bot`
-        The bot instance.
-    """
-
-    COMPONENT_REMOVED = "component_removed"
-    """
-    Dispatched when a component is removed from the bot. The bot hook will be dispatched for all components, 
-    or the hook of the component removed will be dispatched if set.
-
-    Warning
-    ----
-    This will not be dispatched if the bot has not yet been started.
-    
-    Parameters
-    ----------
-    component : :obj:`~.component.Component`
-        The component added.
-    bot : :obj:`~.handler.Bot`
-        The bot instance.
-    """
-
-
-_component_only_hooks = ("component_added", "component_removed")
-
 
 # todo fetch the return value by checking if they have types then create asyncio task, instead of waiting
 def dispatch_hooks(
@@ -173,8 +125,7 @@ def dispatch_hooks(
     component_hooks : Optional[:obj:`.hooks.HookManager`]
         The component's hooks which overwrites the bot's hooks.
     command_hooks : Optional[:obj:`.hooks.HookManager`]
-        The command's hooks which overwrites both the bot's and component's hooks. (Not relevant for non-command related
-        hooks)
+        The command's hooks which overwrites both the bot's hooks and the component's hooks.
     **kwargs : `Any`
         The args to be passed into the hook callback, e.g. error= or context=
 
@@ -219,71 +170,18 @@ class HookManager:
     Manager class of bot, component, and command hooks. Hook are used like hikari events and allow you to call certain
     functions when certain events happen in kousen, such as when an error is raised. See :obj:`~.hooks.HookTypes` for
     the different types/events. See below for examples on how to use hooks.
-
-    Note
-    ----
-    Callables you add as hooks can be both sync and async.
-
-    Examples
-    --------
-    Adding a hook to the bot's hook manager:
-    .. code-block:: python
-        bot = kousen.Bot(...)
-
-        @bot.hooks.with_hook_callback(hook_type=kousen.HookTypes.Error)
-        async def error_handler(error: kousen.KousenError):
-            await error.context.respond("An error occurred!!!")
-
-    Adding to a component's and command's hook manager:
-    .. code-block:: python
-        component = kousen.Component(...)
-
-        @component.hooks.with_hook_callback(hook_type=kousen.HookTypes.Error)
-        async def error_handler(error: kousen.KousenError):
-            await error.context.respond("An error occurred!!!")
-
-        # with a command
-        @kousen.with_message_command
-        @kousen.create_message_command(...)
-        async def ping(context: kousen.MessageContext):
-           await context.respond("Pong!)
-
-        @ping.hooks.with_client_callback(hook_type=kousen.HookTypes.Error)
-        async def ping_error_handler(error: kousen.KousenError)
-            await error.respond("A ping command error occurred!!!")
-
-    Alternatively you can add hooks without decorators:
-    .. code-block:: python
-        async def error_handler(error: kousen.KousenError):
-            await error.context.respond("An error occurred!!!")
-
-        <bot/component/command>.hooks.add_hook_callback(kousen.HookTypes.Error, error_handler)
-
-    Additionally you can add hooks to the bot inside components, though they will not be added until the component
-    is added to the bot instance.
-    .. code-block:: python
-        component = kousen.Component(...)
-
-        @component.add_hook_callback_to_bot(hook_type=kousen.HookTypes.Error)
-        async def error_handler(error: kousen.KousenError):
-            await error.context.respond("An error occurred!!!")
-
-    Warning
-    -------
-    There is no need for a user of hikari to create their own instance of this class, as kousen creates the hooks for
-    the bot and all components and commands.
     """
 
     __slots__ = ("_type_to_hooks", "_instance", "_type", "_names_to_hooks")
 
     def __init__(
         self,
-        instance: t.Union[Component, Bot, Command],
+        instance: t.Union[Component, Bot, BaseCommand],
         _type: t.Literal["bot", "component", "command"],
     ):
         self._type_to_hooks: dict[HookTypes, list[Hook]] = {}
         self._names_to_hooks: dict[str, Hook] = {}
-        self._instance: t.Union[Component, Bot, Command] = instance
+        self._instance: t.Union[Component, Bot, BaseCommand] = instance
         self._type: t.Literal["bot", "component", "command"] = _type
 
     async def dispatch(self, hook_type: HookTypes, **kwargs) -> bool:
@@ -322,17 +220,9 @@ class HookManager:
         _LOGGER.debug(f"Removed hook named '{hook_name}' from the '{self._type}' instance '{self._instance}'.")
         return self
 
-    def with_hook_callback(self, hook_type: HookTypes, name):
+    def with_hook_callback(self, hook_type: HookTypes, name: str):
         """
         A decorator that adds the decorated function to the hooks. Function can be both sync or async.
-
-        Note
-        ----
-        Hooks that are related to components will not work for command hooks and will not be added to command hooks.
-
-        Warning
-        -------
-        The parameters for the function should all be positional as they will be passed positionally.
 
         Parameters
         ----------
@@ -340,6 +230,34 @@ class HookManager:
             The hook type associated with the function.
         name : :obj:`str`
             The name of the hook for easy removal of hooks.
+
+        Examples
+        --------
+        Adding a hook to the bot's hook manager:
+        .. code-block:: python
+            bot = kousen.Bot(...)
+
+            @bot.hooks.with_hook_callback(hook_type=kousen.HookTypes.Error)
+            async def error_handler(error: kousen.KousenError):
+                await error.context.respond("An error occurred!!!")
+
+        Adding to a component and command's hook manager:
+        .. code-block:: python
+            component = kousen.Component(...)
+
+            @component.hooks.with_hook_callback(hook_type=kousen.HookTypes.Error)
+            async def error_handler(error: kousen.KousenError):
+                await error.context.respond("An error occurred!!!")
+
+            # with a command
+            @kousen.with_command
+            @kousen.as_command()
+            async def ping(context: kousen.Context):
+               await context.respond("Pong!)
+
+            @ping.hooks.with_client_callback(hook_type=kousen.HookTypes.Error)
+            async def ping_error_handler(error: kousen.KousenError)
+                await error.respond("A ping command error occurred!!!")
 
         Returns
         -------
@@ -358,13 +276,6 @@ class HookManager:
         Add a callback hook for a hook type. See :obj:`~.hooks.HookTypes` for more information on the different types.
         Callbacks can be both sync or async.
 
-        Note
-        ----
-        Hooks that are related to components will not work for command hooks and will not be added to command hooks.
-
-        Warning
-        -------
-        The parameters for the callback should all be positional as they will be passed positionally.
 
         Parameters
         ----------
@@ -374,6 +285,14 @@ class HookManager:
             The callback to add to the hooks that will be called when the hook type is dispatched.
         name : :obj:`str`
             The name of the hook for easy removal of hooks.
+
+        Example
+        --------
+        .. code-block:: python
+            async def error_handler(error: kousen.KousenError):
+                await error.context.respond("An error occurred!!!")
+
+            bot.hooks.add_hook_callback(kousen.HookTypes.Error, error_handler, "error_handler")
 
         Returns
         -------
@@ -388,19 +307,6 @@ class HookManager:
 
         if name in self._names_to_hooks:
             _LOGGER.error(error_msg + f"there is already a hook named '{name}.")
-            return self
-
-        in_comp = hook_type.value in _component_only_hooks
-        if self._type == "command" and in_comp:
-            _LOGGER.error(error_msg + f"the hook type '{hook_type}' cannot be used with commands")
-            return self
-
-        params = len(inspect.signature(callback).parameters)
-        if in_comp and params != 2:
-            _LOGGER.error(error_msg + f"it takes {params} args when 2 will be passed.")
-            return self
-        if params != 1:
-            _LOGGER.error(error_msg + f"it takes {params} args when 1 will be passed.")
             return self
 
         hook = Hook(callback=callback, name=name, type_=hook_type)
