@@ -21,66 +21,26 @@
 #  SOFTWARE.
 from __future__ import annotations
 import typing as t
-from abc import ABC, abstractmethod
 
 if t.TYPE_CHECKING:
-    from kousen.context import Context
+    ...
 
-__all__: list[str] = ["with_check_manager", "CheckManager", "with_checks"]
+__all__: list[str] = ["CooldownManager", "with_cooldown_manager", "with_cooldown"]
 
 
-def with_check_manager(name_or_manager: t.Union[str, "CheckManager"]):
+def with_cooldown_manager(name_or_manager: t.Union[str, "CooldownManager"]):
     # get manager that was added into the bot, or used passed manager
     ...
 
 
-def with_checks(*checks):
-    # create new manager with checks
+def with_cooldown():
+    # create new manager
     ...
 
 
-class CheckManager:
+class CooldownManager:
 
     __slots__ = ()
 
     def __init__(self):
         ...
-
-
-class AbstractCheck(ABC):
-    __slots__ = ()
-
-    @abstractmethod
-    def check(self, context: Context) -> bool:
-        """check
-
-        Parameters
-        ----------
-        context : :obj:`~Context`
-            The context to check against.
-
-        Returns
-        -------
-        :obj:`bool`
-            Returns `True` if the check passes.
-
-        Raises
-        ------
-        :obj:`~CheckError`
-            If the check fails.
-        """
-
-    @abstractmethod
-    def check_without_error(self, context: Context) -> bool:
-        """check
-
-        Parameters
-        ----------
-        context : :obj:`~Context`
-            The context to check against.
-
-        Returns
-        -------
-        :obj:`bool`
-            Returns `True` if the check passes and `False` if the check fails.
-        """
