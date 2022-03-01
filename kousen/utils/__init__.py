@@ -26,5 +26,3 @@ async def _await_if_async(callable_, *args, **kwargs):
     if inspect.iscoroutinefunction(callable_):
         return await callable_(*args, **kwargs)
     return callable_(*args, **kwargs)
-
-#
