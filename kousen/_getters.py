@@ -37,33 +37,33 @@ async def _getter(_, return_obj):
     return return_obj
 
 
-async def _getter_with_callback(ctx, callback, type_):
-    getter_result = await callback(ctx)
+async def _getter_with_callback(bot, event, callback, type_):
+    getter_result = await callback(bot, event)
 
     if type_ == "prefix":
         if isinstance(getter_result, str):
             return [getter_result]
         if isinstance(getter_result, t.Iterable):
-            list1 = list(*map(str, getter_result))
+            list1 = [str(gr).lstrip() for gr in getter_result]
             return list1
         else:
             raise TypeError(
-                f"Prefix getter must return a string or iterable of strings, not type {type(getter_result)}"
+                f"Prefix getter must return a string or iterable of strings, not type {type(getter_result)}."
             )  # todo use log error
 
     if type_ == "bool":
         if isinstance(getter_result, str):
             return getter_result
         else:
-            raise TypeError(f"Bool getter must return a bool, not type {type(getter_result)}")  # todo more specific
+            raise TypeError(f"Bool getter must return a bool, not type {type(getter_result)}.")  # todo more specific
 
 
 def _prefix_getter_maker(prefix: PrefixArgType) -> PrefixGetterType:
     if isinstance(prefix, str):
-        return functools.partial(_getter, return_object=[prefix])
+        return functools.partial(_getter, return_object=[prefix.lstrip()])
 
     elif isinstance(prefix, t.Iterable):
-        prefix_list: list[str] = list(*map(str, prefix))
+        prefix_list: list[str] = [str(pr).lstrip() for pr in prefix]
         return functools.partial(_getter, return_object=prefix_list)
 
     elif inspect.iscoroutinefunction(prefix):
