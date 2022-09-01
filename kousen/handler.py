@@ -26,9 +26,10 @@ import typing as t
 import inspect
 import importlib
 import hikari
+import asyncio
 
 from kousen.errors import _MissingLoad, _MissingUnload, CommandNotFound
-from kousen.hooks import dispatch_hooks, HookManager, HookTypes
+from kousen.hooks import dispatch_hooks, HookManager, HookType
 from kousen.context import MessageContext, SlashContext
 from kousen._getters import (
     _bool_getter_maker,
@@ -37,7 +38,7 @@ from kousen._getters import (
 
 if t.TYPE_CHECKING:
     from kousen.components import Component
-    from kousen.commands import CommandGroup, SubCommandGroup, BaseCommand
+    from kousen.commands import CommandGroup, SubCommandGroup, BaseCommand, CommandType
 
 __all__: list[str] = ["Bot", "loader", "unloader"]
 
@@ -100,7 +101,7 @@ class Bot(hikari.GatewayBot):
         "_default_parser_getter",
         "_case_insensitive_commands_getter",
         "_case_insensitive_prefixes_getter",
-        "_default_enabled_guilds",
+        "_default_enabled_guild",
         "_delete_unbound_commands",
         "_delete_commands_when_message_only",
         "_delete_commands_when_closing",
@@ -109,6 +110,9 @@ class Bot(hikari.GatewayBot):
         "_loaded_modules",
         "_names_to_components",
         "_hooks",
+        "_application",
+        "names_to_commands",
+        "_commands_to_commands",
         "_message_commands_only",
         "_slash_commands_only",
     )
@@ -134,7 +138,7 @@ class Bot(hikari.GatewayBot):
         self._case_insensitive_commands_getter: BoolGetterType = NotImplemented
         self._case_insensitive_prefixes_getter: BoolGetterType = NotImplemented
 
-        self._default_enabled_guilds: t.Iterable[t.Union[hikari.PartialGuild, int]] = []
+        self._default_enabled_guild: hikari.UndefinedOr[t.Union[hikari.PartialGuild, int]] = hikari.UNDEFINED
         self._delete_unbound_commands: bool = True
         self._delete_commands_when_message_only: bool = True
         self._delete_commands_when_closing: bool = True
@@ -144,7 +148,10 @@ class Bot(hikari.GatewayBot):
         self._loaded_modules: list[str] = []
         self._names_to_components: dict[str, Component] = {}
         self._hooks: HookManager = HookManager(self, "bot")
+        self._application: hikari.Application = NotImplemented
 
+        self._names_to_commands: dict[str, CommandType] = {}
+        self._commands_to_commands: dict[hikari.Command, CommandType] = {}
         self._message_commands_only: bool = False
         self._slash_commands_only: bool = False
 
@@ -153,7 +160,6 @@ class Bot(hikari.GatewayBot):
         if user is None:
             try:
                 user = await self.rest.fetch_my_user()
-                # todo implement backoff with fetch
             except hikari.HikariError:
                 pass
         if user:
@@ -163,9 +169,13 @@ class Bot(hikari.GatewayBot):
         else:
             ...  # todo raise logger error
 
-        if self._delete_unbound_commands:
+        if self._message_commands_only and self._delete_commands_when_message_only:
+            ...  # todo delete all slash commands
+
+        elif self._delete_unbound_commands:
             ...  # todo delete unbound slash commands
 
+        self._application = await self.rest.fetch_application()
         self._started = True
 
     async def _starting_event(self, _) -> None:
@@ -193,7 +203,7 @@ class Bot(hikari.GatewayBot):
 
         Notes
         ----
-        Mention prefixes will continue to work after the message content intent becomes privileged. If you want
+        Mention prefixes continue to work despite the message content intent becoming privileged. If you want
         message commands but do not have the intent then no prefix needs to be passed, mention prefixes will be used.
 
         If a prefix was not previously set and is not passed, then use_mention_prefixes cannot be previously
@@ -204,7 +214,8 @@ class Bot(hikari.GatewayBot):
         use_mention_prefixes : :obj:`bool`
             Whether or not the bot's mention will be used as a message command prefix. Defaults to `True`.
         prefix : Optional[:obj:`~.handler.PrefixArgType`]
-            The bot's message command prefix.
+            The bot's message command prefix. (Will be stripped of leading spaces but not trailing, as a trailing space
+            may be useful.)
         case_insensitive_commands : :obj:`~.handler.BoolArgType`
             Whether or not commands should be case-insensitive or not. Defaults to `False`.
         case_insensitive_prefixes : :obj:`~.handler.BoolArgType`
@@ -272,7 +283,7 @@ class Bot(hikari.GatewayBot):
     def setup_slash_commands(
         self,
         *,
-        default_enabled_guilds: hikari.UndefinedOr[t.Iterable[t.Union[hikari.PartialGuild, int]]] = hikari.UNDEFINED,
+        default_enabled_guild: hikari.UndefinedOr[t.Union[hikari.PartialGuild, int]] = None,
         delete_unbound_commands: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
         delete_commands_when_message_only: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
         delete_commands_when_closing: hikari.UndefinedOr[bool] = hikari.UNDEFINED,
@@ -288,8 +299,8 @@ class Bot(hikari.GatewayBot):
 
         Parameters
         ----------
-        default_enabled_guilds : :obj:`hikari.snowflakes.SnowflakeSequence`
-            The guilds/guild ids that slash commands should be declared in, if not provided then slash commands will be
+        default_enabled_guild : Union[:obj:`hikari.guilds.PartialGuild`, `int`]
+            The guild id that slash commands should be declared in, if not provided then slash commands will be
             declared globally and work in all guilds. This is useful for testing/development as it may take up to
             and hour to propagate global slash commands, but guild specific commands will propagate instantly.
         delete_unbound_commands : `bool`
@@ -325,32 +336,21 @@ class Bot(hikari.GatewayBot):
             if slash_commands_only:
                 self._message_commands_only = False
 
-        if default_enabled_guilds is hikari.UNDEFINED:
-            self._default_enabled_guilds = []
-        elif not isinstance(default_enabled_guilds, t.Iterable):
-            raise TypeError(f"Enabled guilds must be an iterable, not type {type(default_enabled_guilds)}")
-        else:
-            enabled_guilds = []
-            for guild in default_enabled_guilds:
-                if isinstance(guild, hikari.PartialGuild):
-                    enabled_guilds.append(int(guild.id))
-                elif isinstance(guild, int):
-                    enabled_guilds.append(guild)
-                else:
-                    raise TypeError(
-                        f"Enabled guilds must be an iterable of guilds or integers, not of type {type(guild)}"
+        if default_enabled_guild is not hikari.UNDEFINED:
+            if not isinstance(default_enabled_guild, (hikari.PartialGuild, int)):
+                raise TypeError(
+                        f"Default enabled guild must be a guild object or an integer, not of type "
+                        f"{type(default_enabled_guild)}."
                     )
-            self._default_enabled_guilds = enabled_guilds
+        self._default_enabled_guild = default_enabled_guild
 
         if delete_unbound_commands is not hikari.UNDEFINED:
             self._delete_unbound_commands = bool(delete_unbound_commands)
-            if self._started:
-                ...  # todo delete unbound slash commands
+        if self._delete_unbound_commands and self._started:
+            ...  # todo delete unbound slash commands
 
         if delete_commands_when_message_only is not hikari.UNDEFINED:
             self._delete_commands_when_message_only = bool(delete_commands_when_message_only)
-            if self._message_commands_only:
-                ...  # todo delete all slash commands
 
         if delete_commands_when_closing is not hikari.UNDEFINED:
             self._delete_commands_when_closing = bool(delete_commands_when_closing)
@@ -360,16 +360,16 @@ class Bot(hikari.GatewayBot):
 
     def set_owners(self, owners_: t.Iterable[t.Union[hikari.PartialUser, int]]) -> Bot:
         if not isinstance(owners_, t.Iterable):
-            raise TypeError(f"Owners must be an iterable, not type {type(owners_)}")
+            raise TypeError(f"Owners must be an iterable, not type {type(owners_)}.")
         else:
             owners = []
             for owner in owners_:
                 if isinstance(owner, hikari.PartialUser):
                     owners.append(int(owner.id))
                 elif isinstance(owner, int):
-                    owners.append(int(owner))
+                    owners.append(owner)
                 else:
-                    raise TypeError(f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}")
+                    raise TypeError(f"Owners must be an iterable of hikari users or ints, not of type {type(owner)}.")
                 self._owners = owners
         return self
 
@@ -451,7 +451,7 @@ class Bot(hikari.GatewayBot):
                 if content.startswith(prefix_):
                     prefix = prefix_
 
-        if not (content := content[len(prefix) :].lstrip()):
+        if not (content := content[len(prefix):].lstrip()):
             return
 
         name = content.split(" ", maxsplit=1)[0]
@@ -476,7 +476,7 @@ class Bot(hikari.GatewayBot):
                 await command.invoke(context, args, kwargs)
 
         else:
-            dispatch_hooks(HookTypes.ERROR, self._hooks, error=CommandNotFound(self, event, name))
+            dispatch_hooks(HookType.ERROR, self._hooks, error=CommandNotFound(self, event, name))
 
         return
 
@@ -529,7 +529,7 @@ class Bot(hikari.GatewayBot):
         """
         name = str(name)
         if not name.isidentifier():
-            raise ValueError(f"Cannot add the bot attribute '{name}', as it is not a valid identifier.")
+            raise ValueError(f"Failed to add the bot attribute '{name}', as it is not a valid identifier.")
         if name in self._custom_attributes or getattr(self, name, None):
             raise ValueError(f"There is already a bot attribute '{name}'")
         self._custom_attributes[name] = attribute_value
@@ -559,7 +559,7 @@ class Bot(hikari.GatewayBot):
         """
         name = str(name)
         if name not in self._custom_attributes:
-            raise ValueError(f"Cannot set new value of '{name}' as there is no custom attribute named '{name}'")
+            raise ValueError(f"Failed to set new value of '{name}' as there is no custom attribute named '{name}'")
         self._custom_attributes[name] = new_attribute_value
         return self
 
@@ -759,13 +759,42 @@ class Bot(hikari.GatewayBot):
     def add_all_components_in_file(self):
         ...  # todo parse file for component and add to bot
 
+    async def create_slash_command(self, command: BaseCommand) -> hikari.Command:
+        app_command = await self.rest.create_application_command(
+            application=self._application,
+            name=command._name,
+            description=command._description,
+            guild=self._default_enabled_guild,
+            options=command._build_options()
+        )
+        return app_command
+
     def add_component(self, component: Component, create_slash_commands: bool = True) -> Bot:
         if component in self._names_to_components.values():
             return self  # todo raise error
 
         self._names_to_components[component._name] = component
+        for name, command in component._names_to_commands:
+            if command._impl_message:
+                if name in self._names_to_commands:
+                    raise  # todo raise error
+                self._names_to_commands[name] = command
+            if command._impl_slash and create_slash_commands:
+                task = asyncio.create_task(self.create_slash_command(command))
+                while not task.done():
+                    pass
+                if task.exception():
+                    raise task.exception()
+                self._commands_to_commands[task.result()] = command
+
+        for hook_type, hook in component._hooks_added_to_bot:
+            self._hooks._names_to_hooks[hook.name] = hook
+            if hook_type in self._hooks._types_to_hooks:
+                self._hooks._types_to_hooks[hook_type].append(hook)
+            else:
+                self._hooks._types_to_hooks[hook_type] = [hook]
+
         component._set_bot(self)
-        # todo create slash commands
 
         return self
 
@@ -774,7 +803,7 @@ class Bot(hikari.GatewayBot):
             return self  # todo raise error
 
         component = self._names_to_components.pop(component_name)
-        for hook_name in component._hook_names_added_to_bot:
+        for hook_name in component._hooks_added_to_bot:
             self._hooks.remove_hook(hook_name)
         # todo delete slash commands
 
